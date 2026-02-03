@@ -151,8 +151,8 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Signaling server running on port ${PORT}`);
-    console.log(`📡 WebSocket endpoint: ws://localhost:${PORT}`);
-    console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+    console.log(`📡 WebSocket endpoint: ws://0.0.0.0:${PORT}`);
+    console.log(`🏥 Health check: http://0.0.0.0:${PORT}/health`);
 });
