@@ -1,0 +1,142 @@
+{
+    "id": "german-A1.1-lesson-05",
+    "language": "german",
+    "level": "A1.1",
+    "lessonNumber": 5,
+    "topic": "Food & Drinks",
+    "grammarFocus": [
+        {
+            "name": "Verb 'mögen' (to like)",
+            "explanation": "Express preferences for food and drinks.",
+            "examples": [
+                "Ich mag Pizza (I like pizza)",
+                "Magst du Kaffee? (Do you like coffee?)"
+            ],
+            "commonMistakes": [
+                "Confusing mögen with möchten"
+            ]
+        },
+        {
+            "name": "Negation (nicht, kein)",
+            "explanation": "Learn to say what you don't like or don't have.",
+            "examples": [
+                "Ich mag keinen Fisch (I don't like fish)",
+                "Das ist nicht gut (That is not good)"
+            ],
+            "commonMistakes": [
+                "Using nicht when kein is needed"
+            ]
+        }
+    ],
+    "vocabulary": [
+        {
+            "target": "Brot",
+            "translation": "bread",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Wasser",
+            "translation": "water",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Kaffee",
+            "translation": "coffee",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Tee",
+            "translation": "tea",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Apfel",
+            "translation": "apple",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Käse",
+            "translation": "cheese",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Fleisch",
+            "translation": "meat",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "essen",
+            "translation": "to eat",
+            "partOfSpeech": "verb"
+        },
+        {
+            "target": "trinken",
+            "translation": "to drink",
+            "partOfSpeech": "verb"
+        }
+    ],
+    "exercises": [],
+    "totalDuration": 300,
+    "phases": [
+        {
+            "phase": "introduction",
+            "duration": 15,
+            "objectives": [
+                "Introduce food vocabulary"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "grammar",
+            "duration": 60,
+            "objectives": [
+                "Learn mögen and negation"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "vocabulary",
+            "duration": 45,
+            "objectives": [
+                "Master food and drink terms"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "practice",
+            "duration": 120,
+            "objectives": [
+                "Order food, express preferences"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "assessment",
+            "duration": 40,
+            "objectives": [
+                "Test food vocabulary"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "review",
+            "duration": 20,
+            "objectives": [
+                "Summarize"
+            ],
+            "exercises": []
+        }
+    ],
+    "learningObjectives": [
+        "Name common foods and drinks",
+        "Express likes and dislikes",
+        "Use negation correctly",
+        "Order food in German"
+    ],
+    "prerequisites": [
+        "german-A1.1-lesson-04"
+    ],
+    "generatedAt": "2026-01-30T19:44:00.000Z",
+    "generatedBy": "placeholder",
+    "reviewed": false
+}

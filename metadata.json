@@ -1,0 +1,7 @@
+{
+  "name": "Language Tutor AI",
+  "description": "Practice your speaking skills in German, French, Spanish, Chinese, or English with a real-time AI tutor powered by Gemini. Have a natural conversation, get instant feedback, and see live transcriptions.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

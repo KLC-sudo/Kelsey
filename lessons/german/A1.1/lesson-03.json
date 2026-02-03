@@ -1,0 +1,143 @@
+{
+    "id": "german-A1.1-lesson-03",
+    "language": "german",
+    "level": "A1.1",
+    "lessonNumber": 3,
+    "topic": "Family & Relationships",
+    "grammarFocus": [
+        {
+            "name": "Possessive Pronouns",
+            "explanation": "Learn to express ownership and relationships using mein, dein, sein, ihr.",
+            "examples": [
+                "Das ist mein Vater (That is my father)",
+                "Deine Mutter ist nett (Your mother is nice)"
+            ],
+            "commonMistakes": [
+                "Confusing mein/dein endings"
+            ]
+        },
+        {
+            "name": "Verb 'haben' (to have)",
+            "explanation": "Essential verb for expressing possession.",
+            "examples": [
+                "Ich habe einen Bruder (I have a brother)",
+                "Du hast eine Schwester (You have a sister)"
+            ],
+            "commonMistakes": [
+                "Using wrong conjugation"
+            ]
+        }
+    ],
+    "vocabulary": [
+        {
+            "target": "Familie",
+            "translation": "family",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Vater",
+            "translation": "father",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Mutter",
+            "translation": "mother",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Bruder",
+            "translation": "brother",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Schwester",
+            "translation": "sister",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Opa",
+            "translation": "grandpa",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Oma",
+            "translation": "grandma",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "mein",
+            "translation": "my",
+            "partOfSpeech": "possessive"
+        },
+        {
+            "target": "dein",
+            "translation": "your",
+            "partOfSpeech": "possessive"
+        }
+    ],
+    "exercises": [],
+    "totalDuration": 300,
+    "phases": [
+        {
+            "phase": "introduction",
+            "duration": 15,
+            "objectives": [
+                "Introduce family vocabulary"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "grammar",
+            "duration": 60,
+            "objectives": [
+                "Learn possessive pronouns",
+                "Practice 'haben'"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "vocabulary",
+            "duration": 45,
+            "objectives": [
+                "Master family terms"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "practice",
+            "duration": 120,
+            "objectives": [
+                "Describe your family"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "assessment",
+            "duration": 40,
+            "objectives": [
+                "Test family vocabulary"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "review",
+            "duration": 20,
+            "objectives": [
+                "Summarize"
+            ],
+            "exercises": []
+        }
+    ],
+    "learningObjectives": [
+        "Name family members in German",
+        "Use possessive pronouns correctly",
+        "Conjugate 'haben' verb",
+        "Describe your family"
+    ],
+    "prerequisites": [
+        "german-A1.1-lesson-02"
+    ],
+    "generatedAt": "2026-01-30T19:44:00.000Z",
+    "generatedBy": "placeholder",
+    "reviewed": false
+}

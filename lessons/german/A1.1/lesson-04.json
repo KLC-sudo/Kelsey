@@ -1,0 +1,143 @@
+{
+    "id": "german-A1.1-lesson-04",
+    "language": "german",
+    "level": "A1.1",
+    "lessonNumber": 4,
+    "topic": "Colors, Objects & Descriptions",
+    "grammarFocus": [
+        {
+            "name": "Definite Articles (der, die, das)",
+            "explanation": "Learn the three genders in German and their articles.",
+            "examples": [
+                "der Tisch (the table - masculine)",
+                "die Lampe (the lamp - feminine)",
+                "das Buch (the book - neuter)"
+            ],
+            "commonMistakes": [
+                "Guessing gender instead of learning it"
+            ]
+        },
+        {
+            "name": "Basic Adjectives",
+            "explanation": "Describe objects using colors and simple adjectives.",
+            "examples": [
+                "Das Auto ist rot (The car is red)",
+                "Die Blume ist schön (The flower is beautiful)"
+            ],
+            "commonMistakes": [
+                "Adjective endings"
+            ]
+        }
+    ],
+    "vocabulary": [
+        {
+            "target": "rot",
+            "translation": "red",
+            "partOfSpeech": "adjective"
+        },
+        {
+            "target": "blau",
+            "translation": "blue",
+            "partOfSpeech": "adjective"
+        },
+        {
+            "target": "grün",
+            "translation": "green",
+            "partOfSpeech": "adjective"
+        },
+        {
+            "target": "gelb",
+            "translation": "yellow",
+            "partOfSpeech": "adjective"
+        },
+        {
+            "target": "Tisch",
+            "translation": "table",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Stuhl",
+            "translation": "chair",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Buch",
+            "translation": "book",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "groß",
+            "translation": "big",
+            "partOfSpeech": "adjective"
+        },
+        {
+            "target": "klein",
+            "translation": "small",
+            "partOfSpeech": "adjective"
+        }
+    ],
+    "exercises": [],
+    "totalDuration": 300,
+    "phases": [
+        {
+            "phase": "introduction",
+            "duration": 15,
+            "objectives": [
+                "Introduce colors and objects"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "grammar",
+            "duration": 60,
+            "objectives": [
+                "Learn der/die/das"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "vocabulary",
+            "duration": 45,
+            "objectives": [
+                "Master colors and objects"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "practice",
+            "duration": 120,
+            "objectives": [
+                "Describe objects"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "assessment",
+            "duration": 40,
+            "objectives": [
+                "Test descriptions"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "review",
+            "duration": 20,
+            "objectives": [
+                "Summarize"
+            ],
+            "exercises": []
+        }
+    ],
+    "learningObjectives": [
+        "Name colors in German",
+        "Use definite articles correctly",
+        "Describe objects with adjectives",
+        "Understand noun genders"
+    ],
+    "prerequisites": [
+        "german-A1.1-lesson-03"
+    ],
+    "generatedAt": "2026-01-30T19:44:00.000Z",
+    "generatedBy": "placeholder",
+    "reviewed": false
+}

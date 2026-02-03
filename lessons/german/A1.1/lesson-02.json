@@ -1,0 +1,169 @@
+{
+    "id": "german-A1.1-lesson-02",
+    "language": "german",
+    "level": "A1.1",
+    "lessonNumber": 2,
+    "topic": "Numbers, Days & Months",
+    "grammarFocus": [
+        {
+            "name": "Cardinal Numbers 0-100",
+            "explanation": "Learn to count and use numbers in everyday situations.",
+            "examples": [
+                "Ich bin zwanzig Jahre alt (I am 20 years old)",
+                "Es kostet fünfzig Euro (It costs 50 euros)",
+                "Meine Nummer ist drei-vier-fünf (My number is 3-4-5)"
+            ],
+            "commonMistakes": [
+                "Confusing 'zwei' and 'drei'",
+                "Forgetting compound numbers (einundzwanzig = 21)"
+            ]
+        },
+        {
+            "name": "Days and Months",
+            "explanation": "Learn the days of the week and months of the year.",
+            "examples": [
+                "Heute ist Montag (Today is Monday)",
+                "Mein Geburtstag ist im Januar (My birthday is in January)"
+            ],
+            "commonMistakes": [
+                "Not capitalizing days and months",
+                "Using wrong prepositions (am vs. im)"
+            ]
+        }
+    ],
+    "vocabulary": [
+        {
+            "target": "eins",
+            "translation": "one",
+            "partOfSpeech": "number"
+        },
+        {
+            "target": "zwei",
+            "translation": "two",
+            "partOfSpeech": "number"
+        },
+        {
+            "target": "drei",
+            "translation": "three",
+            "partOfSpeech": "number"
+        },
+        {
+            "target": "Montag",
+            "translation": "Monday",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Dienstag",
+            "translation": "Tuesday",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Mittwoch",
+            "translation": "Wednesday",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Januar",
+            "translation": "January",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "Februar",
+            "translation": "February",
+            "partOfSpeech": "noun"
+        },
+        {
+            "target": "heute",
+            "translation": "today",
+            "partOfSpeech": "adverb"
+        },
+        {
+            "target": "morgen",
+            "translation": "tomorrow",
+            "partOfSpeech": "adverb"
+        }
+    ],
+    "exercises": [
+        {
+            "id": "german-A1.1-lesson-02-ex-01",
+            "type": "dialog",
+            "phase": "introduction",
+            "prompt": "Ask student what day it is today",
+            "duration": 120
+        },
+        {
+            "id": "german-A1.1-lesson-02-ex-02",
+            "type": "vocabulary",
+            "phase": "vocabulary",
+            "prompt": "Practice counting from 1-20 in German",
+            "duration": 180
+        }
+    ],
+    "totalDuration": 300,
+    "phases": [
+        {
+            "phase": "introduction",
+            "duration": 15,
+            "objectives": [
+                "Learn about numbers and time"
+            ],
+            "exercises": [
+                "german-A1.1-lesson-02-ex-01"
+            ]
+        },
+        {
+            "phase": "grammar",
+            "duration": 60,
+            "objectives": [
+                "Master numbers 0-100"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "vocabulary",
+            "duration": 45,
+            "objectives": [
+                "Learn days and months"
+            ],
+            "exercises": [
+                "german-A1.1-lesson-02-ex-02"
+            ]
+        },
+        {
+            "phase": "practice",
+            "duration": 120,
+            "objectives": [
+                "Use numbers in context"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "assessment",
+            "duration": 40,
+            "objectives": [
+                "Test number knowledge"
+            ],
+            "exercises": []
+        },
+        {
+            "phase": "review",
+            "duration": 20,
+            "objectives": [
+                "Summarize and preview"
+            ],
+            "exercises": []
+        }
+    ],
+    "learningObjectives": [
+        "Count from 0-100 in German",
+        "Name all days of the week",
+        "Name all months of the year",
+        "Tell the date and time"
+    ],
+    "prerequisites": [
+        "german-A1.1-lesson-01"
+    ],
+    "generatedAt": "2026-01-30T19:44:00.000Z",
+    "generatedBy": "placeholder",
+    "reviewed": false
+}
