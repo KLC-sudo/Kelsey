@@ -36,20 +36,26 @@ class RoomManager {
      * Create a new room (tutor initiates)
      */
     createRoom(tutorSocketId, lessonId = null, roomId = null) {
-        // Use provided roomId or generate new one
-        const finalRoomId = roomId || this.generateRoomCode();
-
-        // Check if roomId already exists
-        if (this.rooms.has(finalRoomId)) {
+        // If a roomId is provided, check if it's a reconnection attempt
+        if (roomId && this.rooms.has(roomId)) {
+            const existingRoom = this.rooms.get(roomId);
+            // If the room exists and the tutor is disconnected, allow reclaim
+            if (existingRoom.tutorDisconnected) {
+                return this.reclaimTutorRoom(tutorSocketId, roomId) ? roomId : null;
+            }
             throw new Error('Room code already in use');
         }
+
+        const finalRoomId = roomId || this.generateRoomCode();
 
         this.rooms.set(finalRoomId, {
             tutorId: tutorSocketId,
             studentId: null,
             createdAt: Date.now(),
             lessonId,
-            state: {} // Shared state (phase, whiteboard, etc.)
+            state: {},
+            tutorDisconnected: false,
+            studentDisconnected: false
         });
 
         this.userRooms.set(tutorSocketId, finalRoomId);
@@ -62,7 +68,8 @@ class RoomManager {
      * Student joins an existing room
      */
     joinRoom(studentSocketId, roomId) {
-        const room = this.rooms.get(roomId);
+        const upperRoomId = roomId.toUpperCase();
+        const room = this.rooms.get(upperRoomId);
 
         if (!room) {
             return { success: false, error: 'Room not found' };
@@ -117,24 +124,52 @@ class RoomManager {
         const room = this.rooms.get(roomId);
         if (!room) return null;
 
-        // Determine who disconnected
         const isTutor = room.tutorId === socketId;
         const otherUserId = isTutor ? room.studentId : room.tutorId;
 
-        // Remove the room entirely (session ends on disconnect)
-        this.rooms.delete(roomId);
-        this.userRooms.delete(socketId);
-        if (otherUserId) {
-            this.userRooms.delete(otherUserId);
+        // Mark as disconnected but don't delete yet
+        if (isTutor) {
+            room.tutorDisconnected = true;
+            console.log(`⚠️ Tutor disconnected from ${roomId}. Waiting for reconnection...`);
+        } else {
+            room.studentDisconnected = true;
+            console.log(`⚠️ Student disconnected from ${roomId}. Waiting for reconnection...`);
         }
 
-        console.log(`❌ Room ${roomId} closed due to ${isTutor ? 'tutor' : 'student'} disconnect`);
+        // Set a timeout to cleanup after 60 seconds of inactivity
+        setTimeout(() => {
+            const currentRoom = this.rooms.get(roomId);
+            if (currentRoom && (currentRoom.tutorDisconnected || (currentRoom.studentId && currentRoom.studentDisconnected))) {
+                // If the user hasn't reconnected, delete it
+                if (currentRoom.tutorDisconnected) {
+                    this.rooms.delete(roomId);
+                    this.userRooms.delete(socketId);
+                    if (otherUserId) this.userRooms.delete(otherUserId);
+                    console.log(`❌ Room ${roomId} closed after tutor failed to reconnect`);
+                }
+            }
+        }, 60000); // 1 minute grace period
 
         return {
             roomId,
             otherUserId,
             isTutor
         };
+    }
+
+    /**
+     * Allow tutor to re-claim an existing room if they reconnect
+     */
+    reclaimTutorRoom(socketId, roomId) {
+        const room = this.rooms.get(roomId);
+        if (room) {
+            room.tutorId = socketId;
+            room.tutorDisconnected = false;
+            this.userRooms.set(socketId, roomId);
+            console.log(`♻️ Tutor re-claimed room ${roomId}`);
+            return true;
+        }
+        return false;
     }
 
     /**
