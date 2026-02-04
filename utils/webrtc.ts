@@ -15,6 +15,7 @@ export class WebRTCConnection {
     private remoteStream: MediaStream | null = null;
     private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
     private onConnectionStateCallback: ((state: ConnectionState) => void) | null = null;
+    private pendingOffer: { offer: RTCSessionDescriptionInit; peerId: string } | null = null;
 
     constructor(
         private socket: Socket,
@@ -40,6 +41,14 @@ export class WebRTCConnection {
             });
 
             console.log('🎤 Local audio stream initialized');
+
+            // Process any pending offer that arrived before stream was ready
+            if (this.pendingOffer) {
+                console.log('📨 Processing pending WebRTC offer...');
+                await this.handleOffer(this.pendingOffer.offer);
+                this.pendingOffer = null;
+            }
+
             return this.localStream;
         } catch (error) {
             console.error('❌ Failed to get local stream:', error);
@@ -118,6 +127,13 @@ export class WebRTCConnection {
     private setupSocketListeners(): void {
         this.socket.on('webrtc-offer', async ({ offer, peerId }) => {
             console.log('📨 Received WebRTC offer from', peerId);
+            // Wait for local stream to be ready before processing offer
+            if (!this.localStream) {
+                console.log('⏳ Waiting for local stream before processing offer...');
+                // Store the offer and process when ready
+                this.pendingOffer = { offer, peerId };
+                return;
+            }
             await this.handleOffer(offer);
         });
 
