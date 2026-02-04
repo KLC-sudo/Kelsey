@@ -130,34 +130,36 @@ export const useWebRTC = ({ roomId, isTutor, onPeerJoined, onPeerLeft }: UseWebR
      */
     const connect = useCallback(async () => {
         if (!socket || !roomId) {
-            console.warn('⚠️ Cannot connect: socket or roomId missing');
+            console.warn('⚠️ Cannot connect: socket or roomId missing', { hasSocket: !!socket, roomId });
             return;
         }
 
         if (isTutor) {
+            console.log('📝 Tutor attempting to create/reclaim room:', roomId);
             // Tutor creates room with their pre-generated room code
             socket.emit('create-room', { roomId, lessonId: null });
 
             socket.once('room-created', async ({ roomId: createdRoomId }) => {
-                console.log('📝 Room created on server:', createdRoomId);
+                console.log('✅ Room successfully registered on server:', createdRoomId);
                 await initializeConnection();
             });
 
             socket.once('create-error', ({ error }) => {
-                console.error('❌ Failed to create room:', error);
+                console.error('❌ Server failed to create room:', error);
                 setError(error);
             });
         } else {
+            console.log('🔍 Student attempting to join room:', roomId);
             // Student joins room
             socket.emit('join-room', { roomId });
 
             socket.once('room-joined', async () => {
-                console.log('✅ Joined room:', roomId);
+                console.log('✅ Successfully joined room on server:', roomId);
                 await initializeConnection();
             });
 
             socket.once('join-error', ({ error }) => {
-                console.error('❌ Failed to join room:', error);
+                console.error('❌ Server failed to join room:', error);
                 setError(error);
             });
         }

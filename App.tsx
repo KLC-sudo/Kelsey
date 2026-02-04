@@ -156,14 +156,22 @@ const App: React.FC = () => {
     // Create room code for tutor when entering tutor session
     useEffect(() => {
         if (view === 'tutor-session' && isTutorMode && !roomCode) {
-            // Generate a simple 6-character room code
-            const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) {
-                code += characters[Math.floor(Math.random() * characters.length)];
+            // Check localStorage first
+            const savedCode = localStorage.getItem('kelsey_tutor_room_code');
+            if (savedCode) {
+                setRoomCode(savedCode);
+                console.log('♻️ Restored room code from storage:', savedCode);
+            } else {
+                // Generate a simple 6-character room code
+                const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                let code = '';
+                for (let i = 0; i < 6; i++) {
+                    code += characters[Math.floor(Math.random() * characters.length)];
+                }
+                setRoomCode(code);
+                localStorage.setItem('kelsey_tutor_room_code', code);
+                console.log('📝 Room generated locally:', code);
             }
-            setRoomCode(code);
-            console.log('📝 Room created:', code);
         }
     }, [view, isTutorMode, roomCode]);
 
