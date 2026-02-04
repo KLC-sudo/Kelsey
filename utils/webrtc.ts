@@ -16,6 +16,7 @@ export class WebRTCConnection {
     private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
     private onConnectionStateCallback: ((state: ConnectionState) => void) | null = null;
     private pendingOffer: { offer: RTCSessionDescriptionInit; peerId: string } | null = null;
+    private pendingIceCandidates: RTCIceCandidateInit[] = [];
 
     constructor(
         private socket: Socket,
@@ -118,6 +119,17 @@ export class WebRTCConnection {
             });
         }
 
+        // Process any queued ICE candidates
+        if (this.pendingIceCandidates.length > 0) {
+            console.log(`🧊 Processing ${this.pendingIceCandidates.length} queued ICE candidates`);
+            this.pendingIceCandidates.forEach(candidate => {
+                pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e =>
+                    console.error('❌ Error adding queued ICE candidate:', e)
+                );
+            });
+            this.pendingIceCandidates = [];
+        }
+
         return pc;
     }
 
@@ -216,7 +228,11 @@ export class WebRTCConnection {
      * Handle incoming ICE candidates
      */
     private async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
-        if (!this.peerConnection) return;
+        if (!this.peerConnection) {
+            console.log('⏳ Queuing ICE candidate (connection not ready)');
+            this.pendingIceCandidates.push(candidate);
+            return;
+        }
 
         try {
             await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
