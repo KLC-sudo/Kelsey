@@ -36,17 +36,21 @@ class RoomManager {
      * Create a new room (tutor initiates)
      */
     createRoom(tutorSocketId, lessonId = null, roomId = null) {
-        // If a roomId is provided, check if it's a reconnection attempt
-        if (roomId && this.rooms.has(roomId)) {
-            const existingRoom = this.rooms.get(roomId);
+        // If a roomId is provided, ensure it's uppercase and check if it's a reconnection attempt
+        const finalRoomId = (roomId || this.generateRoomCode()).toUpperCase();
+
+        if (this.rooms.has(finalRoomId)) {
+            const existingRoom = this.rooms.get(finalRoomId);
             // If the room exists and the tutor is disconnected, allow reclaim
             if (existingRoom.tutorDisconnected) {
-                return this.reclaimTutorRoom(tutorSocketId, roomId) ? roomId : null;
+                return this.reclaimTutorRoom(tutorSocketId, finalRoomId) ? finalRoomId : null;
+            }
+            // If it's the SAME tutor, just return the id (idempotent)
+            if (existingRoom.tutorId === tutorSocketId) {
+                return finalRoomId;
             }
             throw new Error('Room code already in use');
         }
-
-        const finalRoomId = roomId || this.generateRoomCode();
 
         this.rooms.set(finalRoomId, {
             tutorId: tutorSocketId,
@@ -60,7 +64,7 @@ class RoomManager {
 
         this.userRooms.set(tutorSocketId, finalRoomId);
 
-        console.log(`✅ Room created: ${finalRoomId} by tutor ${tutorSocketId}`);
+        console.log(`✅ [RoomManager] Room created: ${finalRoomId} | Tutor: ${tutorSocketId}`);
         return finalRoomId;
     }
 
@@ -68,21 +72,28 @@ class RoomManager {
      * Student joins an existing room
      */
     joinRoom(studentSocketId, roomId) {
+        if (!roomId) return { success: false, error: 'Missing room code' };
+
         const upperRoomId = roomId.toUpperCase();
         const room = this.rooms.get(upperRoomId);
 
         if (!room) {
+            const activeRooms = Array.from(this.rooms.keys());
+            console.log(`❌ [RoomManager] Join failed: ${upperRoomId} not found. Active rooms (${activeRooms.length}): [${activeRooms.join(', ')}]`);
             return { success: false, error: 'Room not found' };
         }
 
-        if (room.studentId) {
+        if (room.studentId && room.studentId !== studentSocketId && !room.studentDisconnected) {
+            console.log(`❌ [RoomManager] Join failed: ${upperRoomId} is full`);
             return { success: false, error: 'Room is full' };
         }
 
+        // Handle student reconnection
         room.studentId = studentSocketId;
-        this.userRooms.set(studentSocketId, roomId);
+        room.studentDisconnected = false;
+        this.userRooms.set(studentSocketId, upperRoomId);
 
-        console.log(`✅ Student ${studentSocketId} joined room ${roomId}`);
+        console.log(`✅ [RoomManager] Student ${studentSocketId} joined room ${upperRoomId}`);
         return { success: true, tutorId: room.tutorId };
     }
 
