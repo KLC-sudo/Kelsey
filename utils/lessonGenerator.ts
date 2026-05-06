@@ -202,25 +202,62 @@ function createLessonPhases(exercises: any[]): LessonPhaseConfig[] {
 }
 
 /**
- * Save generated lesson to file
+ * Save generated lesson to server and local cache
  */
 export async function saveLessonToFile(lesson: Lesson): Promise<void> {
-    const content = JSON.stringify(lesson, null, 2);
-    const filename = `${lesson.id}.json`;
-    const path = `lessons/${lesson.language}/${lesson.level}/${filename}`;
-
-    // In a real implementation, this would write to the file system
-    // For now, we'll use localStorage as a fallback
     try {
-        localStorage.setItem(`lesson_${lesson.id}`, content);
-        console.log(`Lesson saved: ${path}`);
+        const response = await fetch('/api/lessons', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(lesson)
+        });
+        if (!response.ok) throw new Error('Failed to save lesson to server');
+        localStorage.setItem(`lesson_${lesson.id}`, JSON.stringify(lesson));
+        console.log(`Lesson saved: ${lesson.id}`);
     } catch (error) {
         console.error('Error saving lesson:', error);
     }
 }
 
 /**
- * Load lesson from storage
+ * Fetch lessons list from server
+ */
+export async function fetchLessonsFromServer(language?: string, level?: string): Promise<any[]> {
+    try {
+        let url = '/api/lessons';
+        const params = new URLSearchParams();
+        if (language) params.append('language', language);
+        if (level) params.append('level', level);
+        if (params.toString()) url += `?${params.toString()}`;
+
+        const res = await fetch(url);
+        if (res.ok) return await res.json();
+        return [];
+    } catch(e) {
+        console.error('Failed to fetch lessons:', e);
+        return [];
+    }
+}
+
+/**
+ * Fetch complete lesson by ID
+ */
+export async function fetchLessonById(lessonId: string): Promise<Lesson | null> {
+    try {
+        const res = await fetch(`/api/lessons/${lessonId}`);
+        if (res.ok) {
+            const lesson = await res.json();
+            localStorage.setItem(`lesson_${lessonId}`, JSON.stringify(lesson));
+            return lesson;
+        }
+    } catch(e) {
+        console.error('Failed to fetch lesson:', e);
+    }
+    return loadLesson(lessonId); // Fallback to cache
+}
+
+/**
+ * Load lesson from storage (fallback)
  */
 export function loadLesson(lessonId: string): Lesson | null {
     try {

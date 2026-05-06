@@ -6,7 +6,6 @@ import { TranscriptEntry, SessionSummary, PaceUpdate } from './types';
 import { decode, decodeAudioData, encode } from './utils/audio';
 import { MicrophoneIcon, StopIcon, LoadingSpinner } from './components/icons';
 import { HoverToTranslate } from './components/HoverToTranslate';
-import { Whiteboard } from './components/Whiteboard';
 import { NetworkIndicator } from './components/NetworkIndicator';
 import { SessionSummaryComponent } from './components/SessionSummary';
 import { PaceSetterLog } from './components/PaceSetterLog';
@@ -21,14 +20,28 @@ import { getUserProgress, initializeProgress, completeLesson, addStudyTime } fro
 import { createClassSession } from './utils/sessionManager';
 import { getClassModeSystemInstruction } from './utils/classInstructions';
 // Human tutor connectivity imports
-import { TutorControlPanel } from './components/TutorControlPanel';
 import { SessionCodeInput } from './components/SessionCodeInput';
 import { ConnectionStatus } from './components/ConnectionStatus';
-import { AudioIndicator } from './components/AudioIndicator';
 import { useWebRTC } from './hooks/useWebRTC';
 import { StateSyncManager } from './utils/stateSync';
+import type { StudentSignal } from './utils/stateSync';
 import { RoleSelector } from './components/RoleSelector';
 import { RoomCodeDisplay } from './components/RoomCodeDisplay';
+// Board system
+import { LiveBoard } from './components/LiveBoard';
+import { TutorDeckPanel } from './components/TutorDeckPanel';
+import { ReviewHistory } from './components/ReviewHistory';
+import { AuthGate } from './components/AuthGate';
+import type { BoardCard, CurriculumDeck } from './types/board';
+import { buildDeckFromLesson, markCardSent, markCardUnsent } from './utils/curriculumDeck';
+import { buildReviewSession, saveSessionToHistory } from './utils/reviewHistory';
+import { getAuthState, loadAccount } from './utils/account';
+
+import { LiveKitRoom } from '@livekit/components-react';
+import '@livekit/components-styles';
+import { useLiveKitSession } from './hooks/useLiveKitSession';
+import { PTTButton } from './components/PTTButton';
+import { StudentRoster } from './components/StudentRoster';
 
 const languageConfig = {
     german: { name: 'German', tutor: 'Klaus', flag: 'https://img.icons8.com/color/48/germany.png', startPhrase: 'Hallo! Ich bin Klaus. Wie heißt du?' },
@@ -41,10 +54,10 @@ type TargetLanguage = keyof typeof languageConfig;
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 type InstructionLanguage = 'english' | 'spanish' | 'french';
 type Audibility = 'silent' | 'poor' | 'good' | 'clipping';
-type View = 'setup' | 'conversation' | 'summary' | 'mode-select' | 'lesson-picker' | 'role-selection' | 'tutor-session' | 'student-session';
+type View = 'auth' | 'setup' | 'conversation' | 'summary' | 'mode-select' | 'lesson-picker' | 'role-selection' | 'tutor-session' | 'student-session' | 'review-history';
 
 const App: React.FC = () => {
-    const [view, setView] = useState<View>('mode-select');
+    const [view, setView] = useState<View>('role-selection');
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [status, setStatus] = useState<string>('');
     const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
@@ -62,7 +75,7 @@ const App: React.FC = () => {
     const [paceHistory, setPaceHistory] = useState<PaceUpdate[]>([]);
 
     // Class mode state
-    const [appMode, setAppMode] = useState<AppMode>('free');
+    const [appMode, setAppMode] = useState<AppMode>('human-tutor');
     const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
     const [classSession, setClassSession] = useState<ClassSession | null>(null);
     const [currentPhase, setCurrentPhase] = useState<LessonPhase>('introduction');
@@ -77,7 +90,7 @@ const App: React.FC = () => {
     const reconnectTimeoutRef = useRef<number | null>(null);
 
     // Human tutor connectivity state
-    const [isTutorMode, setIsTutorMode] = useState(false); // true = tutor, false = student
+    const [isTutorMode, setIsTutorMode] = useState(false);
     const [roomCode, setRoomCode] = useState<string | null>(null);
     const [showSessionCodeInput, setShowSessionCodeInput] = useState(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -85,16 +98,26 @@ const App: React.FC = () => {
     const stateSyncRef = useRef<StateSyncManager | null>(null);
     const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
-    // Initialize WebRTC for human tutor mode
+    // Board system state
+    const [boardCards, setBoardCards] = useState<BoardCard[]>([]);
+    const [curriculumDeck, setCurriculumDeck] = useState<CurriculumDeck | null>(null);
+    const [lastSentCardId, setLastSentCardId] = useState<string | null>(null);
+    const [flaggedCards, setFlaggedCards] = useState<Map<string, string | undefined>>(new Map());
+    const sessionBoardStartRef = useRef<number>(Date.now());
+
+    // Auth state
+    const [isAuthed, setIsAuthed] = useState<boolean>(() => {
+        const state = getAuthState();
+        return state.isAuthenticated || state.isGuest;
+    });
+
+    // Initialize WebRTC (now only socket.io for state sync)
     const {
         connect,
         disconnect,
         connectionState,
-        localStream,
-        remoteStream,
         socket,
         error: webrtcError,
-        audioRef: webrtcAudioRef,
     } = useWebRTC({
         roomId: roomCode || '',
         isTutor: isTutorMode,
@@ -105,6 +128,17 @@ const App: React.FC = () => {
             console.log('👋 Peer disconnected');
         },
     });
+
+    const account = loadAccount();
+    const { token: livekitToken, wsUrl: livekitUrl, error: livekitError, connect: connectLivekit, disconnect: disconnectLivekit } = useLiveKitSession(roomCode || '', account?.id || '');
+
+    useEffect(() => {
+        if ((view === 'tutor-session' || view === 'student-session') && roomCode) {
+            connectLivekit();
+        } else {
+            disconnectLivekit();
+        }
+    }, [view, roomCode, connectLivekit, disconnectLivekit]);
 
 
     // Fixed: Changed sessionPromiseRef type to any since LiveSession is not exported from @google/genai
@@ -156,22 +190,15 @@ const App: React.FC = () => {
     // Create room code for tutor when entering tutor session
     useEffect(() => {
         if (view === 'tutor-session' && isTutorMode && !roomCode) {
-            // Check localStorage first
-            const savedCode = localStorage.getItem('kelsey_tutor_room_code');
-            if (savedCode) {
-                setRoomCode(savedCode);
-                console.log('♻️ Restored room code from storage:', savedCode);
-            } else {
-                // Generate a simple 6-character room code
-                const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                let code = '';
-                for (let i = 0; i < 6; i++) {
-                    code += characters[Math.floor(Math.random() * characters.length)];
-                }
-                setRoomCode(code);
-                localStorage.setItem('kelsey_tutor_room_code', code);
-                console.log('📝 Room generated locally:', code);
+            // Always generate a fresh room code — stale codes from localStorage are
+            // invalid after a server restart since rooms are in-memory only.
+            const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += characters[Math.floor(Math.random() * characters.length)];
             }
+            setRoomCode(code);
+            console.log('📝 Room generated:', code);
         }
     }, [view, isTutorMode, roomCode]);
 
@@ -191,23 +218,7 @@ const App: React.FC = () => {
         }
     }, [view, roomCode, isTutorMode, connect]);
 
-    // Play remote audio stream
-    useEffect(() => {
-        if (remoteStream && remoteAudioRef.current) {
-            console.log('🔊 Setting up remote audio playback');
-            remoteAudioRef.current.srcObject = remoteStream;
 
-            // Attempt to play (browsers may block autoplay)
-            remoteAudioRef.current.play()
-                .then(() => {
-                    console.log('✅ Remote audio playing');
-                })
-                .catch(err => {
-                    console.error('❌ Error playing remote audio:', err);
-                    console.log('🔇 Audio may be muted or require user interaction');
-                });
-        }
-    }, [remoteStream]);
 
     // Debug connection state
     useEffect(() => {
@@ -223,41 +234,65 @@ const App: React.FC = () => {
             const stateSync = new StateSyncManager(socket, roomCode, isTutorMode);
             stateSyncRef.current = stateSync;
 
-            // Student: Listen for state updates from tutor
             if (!isTutorMode) {
+                // ── Student: listen for tutor events ──
+                stateSync.onStateUpdate('PUSH_CARD', (event) => {
+                    if (event.type === 'PUSH_CARD') {
+                        setBoardCards(prev => [...prev, { ...event.card, revealState: 'incoming', revealedAt: Date.now() }]);
+                    }
+                });
+                stateSync.onStateUpdate('RETRACT_CARD', (event) => {
+                    if (event.type === 'RETRACT_CARD') {
+                        setBoardCards(prev => prev.filter(c => c.id !== event.cardId));
+                    }
+                });
+                stateSync.onStateUpdate('CLEAR_BOARD', () => {
+                    setBoardCards([]);
+                });
                 stateSync.onStateUpdate('CHANGE_PHASE', (event) => {
-                    if (event.type === 'CHANGE_PHASE') {
-                        setCurrentPhase(event.phase);
-                        console.log('📡 Phase updated:', event.phase);
-                    }
+                    if (event.type === 'CHANGE_PHASE') setCurrentPhase(event.phase);
                 });
-
+                // Legacy whiteboard compat
                 stateSync.onStateUpdate('ADD_WHITEBOARD_NOTE', (event) => {
-                    if (event.type === 'ADD_WHITEBOARD_NOTE') {
-                        setWhiteboardTopics(prev => [...prev, event.note]);
-                        console.log('📡 Note added:', event.note);
-                    }
+                    if (event.type === 'ADD_WHITEBOARD_NOTE') setWhiteboardTopics(prev => [...prev, event.note]);
                 });
-
                 stateSync.onStateUpdate('REMOVE_WHITEBOARD_NOTE', (event) => {
-                    if (event.type === 'REMOVE_WHITEBOARD_NOTE') {
-                        setWhiteboardTopics(prev => prev.filter((_, i) => i !== event.index));
-                        console.log('📡 Note removed:', event.index);
+                    if (event.type === 'REMOVE_WHITEBOARD_NOTE') setWhiteboardTopics(prev => prev.filter((_, i) => i !== event.index));
+                });
+            } else {
+                // ── Tutor: listen for student signals ──
+                stateSync.onStudentSignal('STUDENT_FLAG_CARD', (signal) => {
+                    if (signal.type === 'STUDENT_FLAG_CARD') {
+                        setFlaggedCards(prev => new Map(prev).set(signal.cardId, signal.annotationText));
+                        setBoardCards(prev => prev.map(c =>
+                            c.id === signal.cardId
+                                ? { ...c, flagged: true, studentAnnotation: signal.annotationText ? { text: signal.annotationText, createdAt: Date.now() } : c.studentAnnotation }
+                                : c
+                        ));
                     }
                 });
-
-                stateSync.onStateUpdate('CLEAR_WHITEBOARD', () => {
-                    setWhiteboardTopics([]);
-                    console.log('📡 Whiteboard cleared');
+                stateSync.onStudentSignal('STUDENT_UNFLAG_CARD', (signal) => {
+                    if (signal.type === 'STUDENT_UNFLAG_CARD') {
+                        setFlaggedCards(prev => { const m = new Map(prev); m.delete(signal.cardId); return m; });
+                        setBoardCards(prev => prev.map(c => c.id === signal.cardId ? { ...c, flagged: false } : c));
+                    }
                 });
             }
+
+            // Board rehydration on reconnect (server sends this on join)
+            socket.on('board-rehydrate', ({ cards }: { cards: BoardCard[] }) => {
+                setBoardCards(cards);
+                console.log('📦 Board rehydrated:', cards.length, 'cards');
+            });
 
             return () => {
                 stateSync.disconnect();
                 stateSyncRef.current = null;
+                socket.off('board-rehydrate');
             };
         }
     }, [socket, roomCode, view, isTutorMode]);
+
 
     // Handle phase progression
     const handleNextPhase = useCallback(() => {
@@ -923,10 +958,80 @@ const App: React.FC = () => {
         setView('setup');
     }
 
+    // ── Board push/retract helpers ──
+    const handlePushCard = useCallback((card: BoardCard) => {
+        const stamped = { ...card, revealedAt: Date.now(), revealState: 'active' as const };
+        setBoardCards(prev => [...prev, stamped]);
+        setLastSentCardId(stamped.id);
+        if (curriculumDeck) setCurriculumDeck(markCardSent(curriculumDeck, stamped.id));
+        stateSyncRef.current?.sendStateUpdate({ type: 'PUSH_CARD', card: stamped });
+    }, [curriculumDeck]);
+
+    const handleRetractLastCard = useCallback(() => {
+        if (!lastSentCardId) return;
+        setBoardCards(prev => prev.filter(c => c.id !== lastSentCardId));
+        if (curriculumDeck) setCurriculumDeck(markCardUnsent(curriculumDeck, lastSentCardId));
+        stateSyncRef.current?.sendStateUpdate({ type: 'RETRACT_CARD', cardId: lastSentCardId });
+        setLastSentCardId(null);
+    }, [lastSentCardId, curriculumDeck]);
+
+    const handleStudentFlagCard = useCallback((cardId: string, annotationText?: string) => {
+        setBoardCards(prev => prev.map(c =>
+            c.id === cardId
+                ? { ...c, flagged: true, studentAnnotation: annotationText ? { text: annotationText, createdAt: Date.now() } : c.studentAnnotation }
+                : c
+        ));
+        stateSyncRef.current?.sendStudentSignal({ type: 'STUDENT_FLAG_CARD', cardId, annotationText });
+    }, []);
+
+    const handleStudentUnflagCard = useCallback((cardId: string) => {
+        setBoardCards(prev => prev.map(c => c.id === cardId ? { ...c, flagged: false } : c));
+        stateSyncRef.current?.sendStudentSignal({ type: 'STUDENT_UNFLAG_CARD', cardId });
+    }, []);
+
+    const handleEndHumanSession = useCallback(() => {
+        // Save board to review history before clearing
+        if (!isTutorMode && boardCards.length > 0) {
+            const account = loadAccount();
+            const session = buildReviewSession(
+                `session-${Date.now()}`,
+                currentLesson?.id ?? 'unknown',
+                currentLesson?.topic ?? 'Session',
+                (targetLanguage as any) ?? 'german',
+                'A1.1',
+                boardCards,
+                sessionBoardStartRef.current,
+                undefined,
+                account?.id
+            );
+            saveSessionToHistory(session);
+        }
+        setBoardCards([]);
+        setCurriculumDeck(null);
+        setFlaggedCards(new Map());
+        setLastSentCardId(null);
+        disconnect();
+        disconnectLivekit();
+        setView('mode-select');
+        setRoomCode(null);
+        setIsTutorMode(false);
+        sessionBoardStartRef.current = Date.now();
+    }, [isTutorMode, boardCards, currentLesson, targetLanguage, disconnect]);
+
+    // ── Auth gate ──
+    if (!isAuthed) {
+        return <AuthGate onAuthenticated={() => setIsAuthed(true)} />;
+    }
+
+    // ── Review History view ──
+    if (view === 'review-history') {
+        return <ReviewHistory onBack={() => setView('mode-select')} />;
+    }
+
     // Mode selection view
     if (view === 'mode-select') {
         return (
-            <div className="bg-gray-900 text-white h-screen flex flex-col items-center justify-center p-4">
+            <div className="bg-gray-900 text-white h-[100dvh] flex flex-col items-center justify-center p-4">
                 <h1 className="text-4xl font-bold mb-10 animate-fade-in-down">Language Tutor AI</h1>
                 <ModeSelector
                     currentMode={appMode}
@@ -941,6 +1046,13 @@ const App: React.FC = () => {
                         }
                     }}
                 />
+                {/* Review History shortcut for students */}
+                <button
+                    onClick={() => setView('review-history')}
+                    className="mt-6 text-sm text-gray-500 hover:text-blue-400 transition-colors flex items-center gap-2"
+                >
+                    📖 View Review History
+                </button>
             </div>
         );
     }
@@ -963,10 +1075,10 @@ const App: React.FC = () => {
         );
     }
 
-    // Lesson picker view (for class mode)
+    // Lesson picker view — also used for tutor human-mode to pick a lesson
     if (view === 'lesson-picker') {
         return (
-            <div className="bg-gray-900 text-white h-screen flex flex-col items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-gray-900 text-white h-[100dvh] flex flex-col items-center justify-center p-4 overflow-y-auto">
                 <div className="max-w-6xl w-full">
                     <LessonPicker
                         language={targetLanguage || 'german'}
@@ -977,7 +1089,16 @@ const App: React.FC = () => {
                             setDifficulty('beginner');
                             setInstructionLanguage('english');
                             setCurrentPhase('introduction');
-                            setView('conversation');
+                            if (appMode === 'human-tutor') {
+                                // Build the curriculum deck for the tutor
+                                const sessionId = `session-${Date.now()}`;
+                                sessionBoardStartRef.current = Date.now();
+                                const deck = buildDeckFromLesson(lesson, sessionId);
+                                setCurriculumDeck(deck);
+                                setView('tutor-session');
+                            } else {
+                                setView('conversation');
+                            }
                         }}
                         onBack={() => setView('mode-select')}
                     />
@@ -986,212 +1107,201 @@ const App: React.FC = () => {
         );
     }
 
-    // Tutor session view (human tutor mode)
+    // Tutor session view — Curriculum Deck + Live Board preview
     if (view === 'tutor-session') {
         return (
-            <div className="bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
-                <header className="bg-gray-800/50 p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-3">
-                        <span className="text-2xl">👨‍🏫</span>
-                        <h1 className="text-xl font-bold">Tutor Session</h1>
+            <LiveKitRoom serverUrl={livekitUrl || undefined} token={livekitToken || undefined} connect={true} className="bg-gray-900 text-white h-[100dvh] flex flex-col overflow-hidden">
+                <header className="bg-gray-800/50 px-2 sm:px-4 py-3 border-b border-gray-700 flex justify-between items-center shrink-0 gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <span className="text-lg sm:text-xl shrink-0">👨‍🏫</span>
+                        <h1 className="text-sm sm:text-base font-bold truncate">Tutor</h1>
+                        {account?.displayName && <span className="hidden sm:inline text-xs text-gray-400 truncate">· {account.displayName}</span>}
+                        {currentLesson && <span className="hidden xs:inline text-[10px] sm:text-xs text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-full truncate">{currentLesson.topic}</span>}
                     </div>
-                    <button
-                        onClick={() => {
-                            setView('mode-select');
-                            setRoomCode(null);
-                            setIsTutorMode(false);
-                        }}
-                        className="text-sm text-gray-400 hover:text-white"
-                    >
-                        End & Exit
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {roomCode && (
+                            <RoomCodeDisplay
+                                roomCode={roomCode}
+                                onCopyCode={() => { navigator.clipboard.writeText(roomCode); setCopiedRoomCode(true); setTimeout(() => setCopiedRoomCode(false), 2000); }}
+                                copied={copiedRoomCode}
+                                studentConnected={connectionState === 'connected'}
+                            />
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                            {/* LiveKit indicators can be added here if needed */}
+                        </div>
+                        <button
+                            onClick={handleEndHumanSession}
+                            className="text-xs bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            End Session
+                        </button>
+                    </div>
                 </header>
 
-                <main className="flex-grow container mx-auto p-4 flex gap-4 min-h-0 overflow-hidden">
-                    {/* Left: Tutor Control Panel with themed scrollbar */}
-                    <div className="w-2/5 flex flex-col gap-3 overflow-y-auto tutor-scrollbar" style={{ maxHeight: 'calc(100vh - 140px)' }}>
-                        {/* Room Code Card */}
-                        {roomCode && (
-                            <div className="flex-shrink-0">
-                                <RoomCodeDisplay
-                                    roomCode={roomCode}
-                                    onCopyCode={() => {
-                                        navigator.clipboard.writeText(roomCode);
-                                        setCopiedRoomCode(true);
-                                        setTimeout(() => setCopiedRoomCode(false), 2000);
-                                    }}
-                                    copied={copiedRoomCode}
-                                />
+                <main className="flex-grow flex flex-col md:flex-row gap-3 p-2 sm:p-3 min-h-0 overflow-hidden">
+                    {/* Server error banner */}
+                    {webrtcError && (
+                        <div className="absolute top-16 left-0 right-0 mx-3 flex items-start justify-between gap-4 bg-red-900/80 border border-red-500 text-red-100 text-sm rounded-xl px-4 py-3 z-50 shadow-2xl backdrop-blur-sm animate-fade-in-down">
+                            <div className="flex items-start gap-3">
+                                <span className="text-2xl shrink-0 mt-0.5">🚨</span>
+                                <div>
+                                    <p className="font-bold text-base">Server offline or unreachable</p>
+                                    <p className="mt-1 text-red-200">
+                                        Make sure the backend is running with <code className="bg-red-950 px-1 py-0.5 rounded font-mono text-xs">npm run server</code>
+                                    </p>
+                                    <p className="mt-1 text-xs opacity-75">{webrtcError}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={connect}
+                                className="shrink-0 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold transition-colors shadow-lg"
+                            >
+                                Retry Connection
+                            </button>
+                        </div>
+                    )}
+                    {/* Left: Curriculum Deck */}
+                    <div className="w-full md:w-72 shrink-0 flex flex-col min-h-0 h-1/2 md:h-full">
+                        {curriculumDeck ? (
+                            <TutorDeckPanel
+                                deck={curriculumDeck}
+                                currentPhase={currentPhase}
+                                flaggedCardIds={flaggedCards}
+                                onPushCard={handlePushCard}
+                                onRetractLastCard={handleRetractLastCard}
+                                lastSentCardId={lastSentCardId}
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm text-center gap-2">
+                                <span className="text-4xl">📚</span>
+                                <p>No lesson loaded.</p>
+                                <button onClick={() => setView('lesson-picker')} className="mt-2 text-blue-400 hover:text-blue-300 text-xs underline">Pick a lesson</button>
                             </div>
                         )}
+                    </div>
 
-                        {/* Audio Levels Card */}
-                        <div className="flex-shrink-0 bg-gray-800/60 rounded-xl p-4 border border-gray-700/50 backdrop-blur-sm">
-                            <h3 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                                <span className="text-green-400">🎤</span>
-                                Audio Levels
-                            </h3>
-                            <div className="space-y-2">
-                                <AudioIndicator stream={localStream} label="Your Mic" />
-                                <AudioIndicator stream={remoteStream} label="Student" />
+                    {/* Right: Live Board preview (tutor sees what student sees) */}
+                    <div className="flex-1 flex flex-col min-h-0 h-1/2 md:h-full gap-3">
+                        <div className="flex-1 flex flex-col min-h-0 bg-gray-800/50 rounded-xl border border-gray-700">
+                            <div className="text-xs text-gray-500 mb-2 px-3 pt-3">👁 Student board preview</div>
+                            <div className="flex-1 min-h-0">
+                                <LiveBoard
+                                    cards={boardCards}
+                                    tutorName="You (Tutor)"
+                                    onFlagCard={() => {}}
+                                    onUnflagCard={() => {}}
+                                />
                             </div>
                         </div>
-
-                        {/* Tutor Controls Card */}
-                        <div className="flex-1 min-h-0">
-                            <TutorControlPanel
-                                currentLesson={currentLesson}
-                                currentPhase={currentPhase}
-                                whiteboardTopics={whiteboardTopics}
-                                sessionDuration={sessionElapsedTime}
-                                studentConnected={connectionState === 'connected'}
-                                onPhaseChange={(phase) => {
-                                    setCurrentPhase(phase);
-                                    stateSyncRef.current?.sendStateUpdate({
-                                        type: 'CHANGE_PHASE',
-                                        phase
-                                    });
-                                }}
-                                onAddNote={(note) => {
-                                    setWhiteboardTopics([...whiteboardTopics, note]);
-                                    stateSyncRef.current?.sendStateUpdate({
-                                        type: 'ADD_WHITEBOARD_NOTE',
-                                        note
-                                    });
-                                }}
-                                onRemoveNote={(index) => {
-                                    setWhiteboardTopics(whiteboardTopics.filter((_, i) => i !== index));
-                                    stateSyncRef.current?.sendStateUpdate({
-                                        type: 'REMOVE_WHITEBOARD_NOTE',
-                                        index
-                                    });
-                                }}
-                                onEndSession={() => {
-                                    disconnect();
-                                    setView('mode-select');
-                                    setRoomCode(null);
-                                    setWhiteboardTopics([]);
-                                }}
-                            />
+                        <div className="h-64 shrink-0">
+                            <StudentRoster />
                         </div>
                     </div>
-
-                    {/* Right: Whiteboard */}
-                    <div className="flex-1 flex flex-col min-h-0">
-                        <Whiteboard
-                            topics={whiteboardTopics}
-                            tutorName="You (Tutor)"
-                        />
-                    </div>
                 </main>
-
-                {/* Remote Audio Element */}
-                <audio ref={remoteAudioRef} autoPlay controls className="hidden" />
-            </div>
+            </LiveKitRoom>
         );
     }
 
-    // Student session view (human tutor mode)
+    // Student session view — Live Board
     if (view === 'student-session') {
         return (
-            <div className="bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
-                {/* Session Code Input Modal */}
+            <LiveKitRoom serverUrl={livekitUrl || undefined} token={livekitToken || undefined} connect={true} className="bg-gray-900 text-white h-[100dvh] flex flex-col overflow-hidden">
                 {showSessionCodeInput && (
                     <SessionCodeInput
                         onJoin={(code) => {
                             setRoomCode(code);
                             setShowSessionCodeInput(false);
                             setConnectionError(null);
-                            // TODO: Join room via WebRTC
+                            sessionBoardStartRef.current = Date.now();
                         }}
-                        onCancel={() => {
-                            setView('role-selection');
-                            setShowSessionCodeInput(false);
-                        }}
+                        onCancel={() => { setView('role-selection'); setShowSessionCodeInput(false); }}
                         error={connectionError}
                     />
                 )}
 
-                <header className="bg-gray-800/50 p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-3">
-                        <span className="text-2xl">🎓</span>
-                        <h1 className="text-xl font-bold">Student Session</h1>
-                        {roomCode && (
-                            <span className="text-sm text-gray-400">Room: {roomCode}</span>
-                        )}
+                <header className="bg-gray-800/50 px-2 sm:px-4 py-3 border-b border-gray-700 flex justify-between items-center shrink-0 gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <span className="text-lg sm:text-xl shrink-0">🎓</span>
+                        <h1 className="text-sm sm:text-base font-bold truncate">Student</h1>
+                        {account?.displayName && <span className="hidden sm:inline text-xs text-gray-400 truncate">· {account.displayName}</span>}
+                        {roomCode && <span className="text-[10px] sm:text-xs text-gray-500 truncate">Room: {roomCode}</span>}
                     </div>
-                    <button
-                        onClick={() => {
-                            disconnect();
-                            setView('mode-select');
-                            setRoomCode(null);
-                            setIsTutorMode(false);
-                        }}
-                        className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                    >
-                        Leave Session
-                    </button>
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                        <ConnectionStatus state={connectionState} roomCode={roomCode || undefined} />
+                        {roomCode && (
+                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                                {/* Student PTT button is displayed below */}
+                            </div>
+                        )}
+                        <button
+                            onClick={handleEndHumanSession}
+                            className="text-xs bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            Leave
+                        </button>
+                        <button
+                            onClick={() => setView('review-history')}
+                            className="text-xs text-gray-400 hover:text-blue-400 transition-colors"
+                        >
+                            📖 History
+                        </button>
+                    </div>
                 </header>
 
-                <main className="flex-grow container mx-auto p-4 flex flex-col min-h-0 overflow-hidden">
-                    {/* Connection & Audio Status */}
-                    <div className="mb-4 space-y-3">
-                        {/* Connection Status */}
-                        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-                            <ConnectionStatus
-                                state={connectionState}
-                                roomCode={roomCode || undefined}
-                            />
-                        </div>
-
-                        {/* Audio Levels */}
-                        {roomCode && (
-                            <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-                                <h3 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">🎤 Audio Levels</h3>
-                                <div className="space-y-2">
-                                    <AudioIndicator stream={localStream} label="Your Mic" />
-                                    <AudioIndicator stream={remoteStream} label="Tutor" />
+                <main className="flex-grow flex flex-col min-h-0 p-3">
+                    {/* Server error banner */}
+                    {webrtcError && (
+                        <div className="mb-4 flex items-start justify-between gap-4 bg-red-900/80 border border-red-500 text-red-100 text-sm rounded-xl px-4 py-3 shadow-xl backdrop-blur-sm animate-fade-in-down">
+                            <div className="flex items-start gap-3">
+                                <span className="text-2xl shrink-0 mt-0.5">🚨</span>
+                                <div>
+                                    <p className="font-bold text-base">Server offline or unreachable</p>
+                                    <p className="mt-1 text-red-200">
+                                        Make sure the backend is running with <code className="bg-red-950 px-1 py-0.5 rounded font-mono text-xs">npm run server</code>
+                                    </p>
+                                    <p className="mt-1 text-xs opacity-75">{webrtcError}</p>
                                 </div>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Waiting State */}
-                    {!roomCode && (
-                        <div className="flex-grow flex items-center justify-center">
-                            <div className="text-center">
-                                <div className="text-6xl mb-4">⏳</div>
-                                <h2 className="text-2xl font-bold mb-2">Waiting to Join</h2>
-                                <p className="text-gray-400">Enter your tutor's room code to connect</p>
-                            </div>
+                            <button
+                                onClick={connect}
+                                className="shrink-0 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold transition-colors shadow-lg"
+                            >
+                                Retry Connection
+                            </button>
                         </div>
                     )}
-
-                    {/* Connected State - Whiteboard */}
-                    {roomCode && (
-                        <div className="flex-grow flex flex-col min-h-0">
-                            <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-3 mb-4">
-                                <p className="text-sm text-blue-300">
-                                    🎧 Follow along with your tutor. The whiteboard will update automatically.
-                                </p>
+                    {!roomCode ? (
+                        <div className="flex-grow flex items-center justify-center text-center text-gray-500">
+                            <div>
+                                <div className="text-5xl mb-3 opacity-40">⏳</div>
+                                <p className="font-medium text-gray-400">Waiting to join</p>
+                                <p className="text-sm mt-1 text-gray-600">Enter your tutor's room code to connect</p>
                             </div>
-                            <Whiteboard
-                                topics={whiteboardTopics}
-                                tutorName="Your Tutor"
-                            />
+                        </div>
+                    ) : (
+                        <div className="flex-grow flex flex-col min-h-0 gap-4">
+                            <div className="flex-1 min-h-0">
+                                <LiveBoard
+                                    cards={boardCards}
+                                    tutorName="Your Tutor"
+                                    onFlagCard={handleStudentFlagCard}
+                                    onUnflagCard={handleStudentUnflagCard}
+                                />
+                            </div>
+                            <div className="shrink-0 flex justify-center pb-4">
+                                <PTTButton />
+                            </div>
                         </div>
                     )}
                 </main>
-
-                {/* Remote Audio Element */}
-                <audio ref={remoteAudioRef} autoPlay controls className="hidden" />
-            </div>
+            </LiveKitRoom>
         );
     }
 
     if (!targetLanguage) {
         return (
-            <div className="bg-gray-900 text-white h-screen flex flex-col items-center justify-center p-4">
+            <div className="bg-gray-900 text-white h-[100dvh] flex flex-col items-center justify-center p-4">
                 <h1 className="text-4xl font-bold mb-10 animate-fade-in-down">Language Tutor AI</h1>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
                     {(Object.keys(languageConfig) as TargetLanguage[]).map((lang, idx) => (
@@ -1207,7 +1317,7 @@ const App: React.FC = () => {
 
     if (view === 'summary') {
         return (
-            <div className="bg-gray-900 text-white h-screen overflow-y-auto">
+            <div className="bg-gray-900 text-white h-[100dvh] overflow-y-auto">
                 {isGeneratingSummary ? (
                     <div className="h-full flex flex-col items-center justify-center animate-fade-in">
                         <LoadingSpinner className="w-12 h-12 text-blue-500 animate-spin mb-4" />
@@ -1226,7 +1336,7 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className="bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
+        <div className="bg-gray-900 text-white h-[100dvh] flex flex-col overflow-hidden">
             <header className="bg-gray-800/50 p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
                 <div className="flex items-center space-x-3">
                     <img src={languageConfig[targetLanguage].flag} className="h-8 w-8" />

@@ -4,9 +4,10 @@ interface RoomCodeDisplayProps {
     roomCode: string;
     onCopyCode: () => void;
     copied: boolean;
+    studentConnected?: boolean;
 }
 
-export const RoomCodeDisplay: React.FC<RoomCodeDisplayProps> = ({ roomCode, onCopyCode, copied }) => {
+export const RoomCodeDisplay: React.FC<RoomCodeDisplayProps> = ({ roomCode, onCopyCode, copied, studentConnected }) => {
     return (
         <div className="bg-gradient-to-r from-purple-900/50 to-purple-800/50 border-2 border-purple-500 rounded-lg p-3">
             <div className="text-center">
@@ -24,8 +25,8 @@ export const RoomCodeDisplay: React.FC<RoomCodeDisplayProps> = ({ roomCode, onCo
                 >
                     {copied ? '✓ Copied!' : '📋 Copy Code'}
                 </button>
-                <p className="text-xs text-purple-300 mt-2">
-                    Waiting for student...
+                <p className={`text-xs mt-2 ${studentConnected ? 'text-green-400 font-medium' : 'text-purple-300'}`}>
+                    {studentConnected ? '✅ Student Connected' : '⏳ Waiting for student...'}
                 </p>
             </div>
         </div>

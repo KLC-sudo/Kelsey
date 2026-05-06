@@ -3,7 +3,13 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import RoomManager from './roomManager.js';
+
+import userRoutes from './routes/users.js';
+import lessonRoutes from './routes/lessons.js';
+import livekitRoutes from './routes/livekit.js';
 
 dotenv.config();
 
@@ -22,6 +28,11 @@ const roomManager = new RoomManager();
 app.use(cors());
 app.use(express.json());
 
+// API Routes
+app.use('/api/users', userRoutes);
+app.use('/api/lessons', lessonRoutes);
+app.use('/api/livekit', livekitRoutes);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
@@ -29,6 +40,21 @@ app.get('/health', (req, res) => {
         stats: roomManager.getStats(),
         timestamp: new Date().toISOString()
     });
+});
+
+// Production: Serve frontend static files
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, '../dist');
+app.use(express.static(distPath));
+
+// Fallback for SPA routing
+app.get('*', (req, res) => {
+    // Exclude API routes from fallback
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API route not found' });
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Socket.io connection handling
@@ -58,9 +84,14 @@ io.on('connection', (socket) => {
         }
 
         socket.join(roomId);
-
-        // Notify student of successful join
         socket.emit('room-joined', { roomId });
+
+        // Send current board state to the reconnecting/joining student
+        const currentCards = roomManager.getBoardCards(roomId.toUpperCase());
+        if (currentCards.length > 0) {
+            socket.emit('board-rehydrate', { cards: currentCards });
+            console.log(`📦 Sent ${currentCards.length} board cards to rejoining student in ${roomId}`);
+        }
 
         // Notify tutor that student has joined
         io.to(result.tutorId).emit('peer-joined', {
@@ -115,20 +146,39 @@ io.on('connection', (socket) => {
     // State synchronization (tutor -> student)
     socket.on('state-update', ({ roomId, stateEvent }) => {
         const room = roomManager.getRoom(roomId);
-        if (!room || room.tutorId !== socket.id) {
-            // Only tutors can send state updates
-            return;
+        if (!room || room.tutorId !== socket.id) return;
+
+        // Maintain server-side board card state
+        if (stateEvent.type === 'PUSH_CARD') {
+            roomManager.pushBoardCard(roomId, stateEvent.card);
+        } else if (stateEvent.type === 'RETRACT_CARD') {
+            roomManager.retractBoardCard(roomId, stateEvent.cardId);
+        } else if (stateEvent.type === 'CLEAR_BOARD' || stateEvent.type === 'END_SESSION') {
+            roomManager.clearBoardCards(roomId);
         }
 
-        // Update room state
         roomManager.updateRoomState(roomId, { lastUpdate: stateEvent });
 
-        // Forward to student
         if (room.studentId) {
             io.to(room.studentId).emit('state-update', { stateEvent });
         }
 
         console.log(`🔄 State update in room ${roomId}:`, stateEvent.type);
+    });
+
+    // Student -> Tutor signal relay (flags, annotations)
+    socket.on('student-signal', ({ roomId, signal }) => {
+        const upperRoomId = (roomId || '').toUpperCase();
+        const room = roomManager.getRoom(upperRoomId);
+        if (!room || room.studentId !== socket.id) return;
+
+        // Forward only to tutor
+        io.to(room.tutorId).emit('student-signal', {
+            signal,
+            peerId: socket.id
+        });
+
+        console.log(`🚩 Student signal in room ${upperRoomId}:`, signal.type);
     });
 
     // Handle disconnect

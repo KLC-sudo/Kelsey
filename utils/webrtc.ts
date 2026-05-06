@@ -17,6 +17,7 @@ export class WebRTCConnection {
     private onConnectionStateCallback: ((state: ConnectionState) => void) | null = null;
     private pendingOffer: { offer: RTCSessionDescriptionInit; peerId: string } | null = null;
     private pendingIceCandidates: RTCIceCandidateInit[] = [];
+    private localStreamInitialized: boolean = false;
 
     constructor(
         private socket: Socket,
@@ -30,31 +31,37 @@ export class WebRTCConnection {
     /**
      * Initialize local media stream (microphone)
      */
-    async initializeLocalStream(): Promise<MediaStream> {
+    async initializeLocalStream(): Promise<MediaStream | null> {
         try {
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
-                video: false,
-            });
-
-            console.log('🎤 Local audio stream initialized');
-
-            // Process any pending offer that arrived before stream was ready
-            if (this.pendingOffer) {
-                console.log('📨 Processing pending WebRTC offer...');
-                await this.handleOffer(this.pendingOffer.offer);
-                this.pendingOffer = null;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.warn('⚠️ navigator.mediaDevices is undefined. Proceeding without microphone.');
+                this.localStream = null;
+            } else {
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                    video: false,
+                });
+                console.log('🎤 Local audio stream initialized');
             }
-
-            return this.localStream;
         } catch (error) {
-            console.error('❌ Failed to get local stream:', error);
-            throw new Error('Microphone access denied');
+            console.warn('⚠️ Microphone access denied or unavailable, proceeding without it:', error);
+            this.localStream = null;
         }
+
+        this.localStreamInitialized = true;
+
+        // Process any pending offer that arrived before stream was ready
+        if (this.pendingOffer) {
+            console.log('📨 Processing pending WebRTC offer...');
+            await this.handleOffer(this.pendingOffer.offer);
+            this.pendingOffer = null;
+        }
+
+        return this.localStream;
     }
 
     /**
@@ -119,45 +126,38 @@ export class WebRTCConnection {
             });
         }
 
-        // Process any queued ICE candidates
-        if (this.pendingIceCandidates.length > 0) {
-            console.log(`🧊 Processing ${this.pendingIceCandidates.length} queued ICE candidates`);
-            this.pendingIceCandidates.forEach(candidate => {
-                pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e =>
-                    console.error('❌ Error adding queued ICE candidate:', e)
-                );
-            });
-            this.pendingIceCandidates = [];
-        }
-
         return pc;
     }
+
+    private onWebrtcOffer = async ({ offer, peerId }: any) => {
+        console.log('📨 Received WebRTC offer from', peerId);
+        // Wait for local stream to be ready before processing offer
+        if (!this.localStreamInitialized) {
+            console.log('⏳ Waiting for local stream before processing offer...');
+            // Store the offer and process when ready
+            this.pendingOffer = { offer, peerId };
+            return;
+        }
+        await this.handleOffer(offer);
+    };
+
+    private onWebrtcAnswer = async ({ answer, peerId }: any) => {
+        console.log('📨 Received WebRTC answer from', peerId);
+        await this.handleAnswer(answer);
+    };
+
+    private onIceCandidate = async ({ candidate, peerId }: any) => {
+        console.log('🧊 Received ICE candidate from', peerId);
+        await this.handleIceCandidate(candidate);
+    };
 
     /**
      * Setup Socket.io listeners for WebRTC signaling
      */
     private setupSocketListeners(): void {
-        this.socket.on('webrtc-offer', async ({ offer, peerId }) => {
-            console.log('📨 Received WebRTC offer from', peerId);
-            // Wait for local stream to be ready before processing offer
-            if (!this.localStream) {
-                console.log('⏳ Waiting for local stream before processing offer...');
-                // Store the offer and process when ready
-                this.pendingOffer = { offer, peerId };
-                return;
-            }
-            await this.handleOffer(offer);
-        });
-
-        this.socket.on('webrtc-answer', async ({ answer, peerId }) => {
-            console.log('📨 Received WebRTC answer from', peerId);
-            await this.handleAnswer(answer);
-        });
-
-        this.socket.on('ice-candidate', async ({ candidate, peerId }) => {
-            console.log('🧊 Received ICE candidate from', peerId);
-            await this.handleIceCandidate(candidate);
-        });
+        this.socket.on('webrtc-offer', this.onWebrtcOffer);
+        this.socket.on('webrtc-answer', this.onWebrtcAnswer);
+        this.socket.on('ice-candidate', this.onIceCandidate);
     }
 
     /**
@@ -195,6 +195,8 @@ export class WebRTCConnection {
 
         try {
             await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            this.processQueuedIceCandidates();
+            
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
 
@@ -213,32 +215,47 @@ export class WebRTCConnection {
      * Tutor handles incoming answer
      */
     private async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
-        if (!this.isTutor || !this.peerConnection) return;
+        if (!this.peerConnection) return;
 
         try {
             await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-            console.log('✅ WebRTC answer processed');
+            console.log('✅ Remote description set (answer)');
+            this.processQueuedIceCandidates();
         } catch (error) {
             console.error('❌ Failed to handle answer:', error);
-            throw error;
         }
     }
 
     /**
-     * Handle incoming ICE candidates
+     * Handle incoming ICE candidate
      */
     private async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
-        if (!this.peerConnection) {
-            console.log('⏳ Queuing ICE candidate (connection not ready)');
+        if (!this.peerConnection || !this.peerConnection.remoteDescription) {
+            console.log('⏳ Queuing ICE candidate (no remote description yet)');
             this.pendingIceCandidates.push(candidate);
             return;
         }
 
         try {
             await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('✅ ICE candidate added');
+            console.log('✅ Added remote ICE candidate');
         } catch (error) {
-            console.error('❌ Failed to add ICE candidate:', error);
+            console.error('❌ Error adding ICE candidate:', error);
+        }
+    }
+
+    /**
+     * Process any queued ICE candidates
+     */
+    private processQueuedIceCandidates(): void {
+        if (this.peerConnection && this.pendingIceCandidates.length > 0) {
+            console.log(`🧊 Processing ${this.pendingIceCandidates.length} queued ICE candidates`);
+            this.pendingIceCandidates.forEach(candidate => {
+                this.peerConnection!.addIceCandidate(new RTCIceCandidate(candidate)).catch(e =>
+                    console.error('❌ Error adding queued ICE candidate:', e)
+                );
+            });
+            this.pendingIceCandidates = [];
         }
     }
 
@@ -261,6 +278,10 @@ export class WebRTCConnection {
      */
     disconnect(): void {
         console.log('🔌 Disconnecting WebRTC');
+
+        this.socket.off('webrtc-offer', this.onWebrtcOffer);
+        this.socket.off('webrtc-answer', this.onWebrtcAnswer);
+        this.socket.off('ice-candidate', this.onIceCandidate);
 
         if (this.localStream) {
             this.localStream.getTracks().forEach((track) => track.stop());

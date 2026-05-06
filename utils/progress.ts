@@ -21,15 +21,70 @@ export function getUserProgress(): UserProgress | null {
     }
 }
 
+import { loadAccount, getAuthState } from './account';
+
 /**
- * Save user progress to LocalStorage
+ * Save user progress to LocalStorage and sync to server
  */
 export function saveUserProgress(progress: UserProgress): void {
     try {
         progress.updatedAt = Date.now();
         localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(progress));
+        
+        // Sync to server in background
+        const account = loadAccount();
+        if (account && !getAuthState().isGuest) {
+            fetch(`/api/users/${account.id}/progress`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${account.id}`
+                },
+                body: JSON.stringify({
+                    language: progress.language,
+                    level: progress.currentLevel,
+                    currentLesson: progress.currentLesson,
+                    completedLessons: progress.completedLessons,
+                    assessments: progress.assessments,
+                    totalStudyTime: progress.totalStudyTime,
+                    averageScore: progress.averageScore
+                })
+            }).catch(e => console.error('Failed to sync progress:', e));
+        }
     } catch (error) {
         console.error('Error saving user progress:', error);
+    }
+}
+
+export async function syncProgressFromServer(): Promise<void> {
+    const account = loadAccount();
+    if (account && !getAuthState().isGuest) {
+        try {
+            const res = await fetch(`/api/users/${account.id}/progress`, {
+                headers: { 'Authorization': `Bearer ${account.id}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data) {
+                    const mappedProgress: UserProgress = {
+                        language: data.language,
+                        currentLevel: data.level,
+                        currentLesson: data.current_lesson,
+                        completedLessons: data.completed_lessons,
+                        assessments: data.assessments,
+                        totalStudyTime: data.total_study_time,
+                        lessonsCompleted: data.completed_lessons.length,
+                        averageScore: data.average_score,
+                        instructionLanguage: 'english', // default
+                        createdAt: data.updated_at,
+                        updatedAt: data.updated_at,
+                    };
+                    localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(mappedProgress));
+                }
+            }
+        } catch(e) {
+            console.error('Failed to sync progress from server:', e);
+        }
     }
 }
 

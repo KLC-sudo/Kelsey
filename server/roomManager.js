@@ -58,6 +58,7 @@ class RoomManager {
             createdAt: Date.now(),
             lessonId,
             state: {},
+            boardCards: [],      // ← persisted card state for reconnect rehydration
             tutorDisconnected: false,
             studentDisconnected: false
         });
@@ -122,6 +123,50 @@ class RoomManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Push a board card into room state (for reconnect rehydration)
+     */
+    pushBoardCard(roomId, card) {
+        const room = this.rooms.get(roomId);
+        if (!room) return false;
+        room.boardCards.push(card);
+        return true;
+    }
+
+    /**
+     * Remove a board card from room state (retraction)
+     */
+    retractBoardCard(roomId, cardId) {
+        const room = this.rooms.get(roomId);
+        if (!room) return false;
+        room.boardCards = room.boardCards.filter(c => c.id !== cardId);
+        return true;
+    }
+
+    /**
+     * Clear all board cards for a room (session end or clear event)
+     */
+    clearBoardCards(roomId) {
+        const room = this.rooms.get(roomId);
+        if (!room) return false;
+        room.boardCards = [];
+        return true;
+    }
+
+    /**
+     * Get current board cards for a room (used on student reconnect)
+     */
+    getBoardCards(roomId) {
+        return this.rooms.get(roomId)?.boardCards ?? [];
+    }
+
+    /**
+     * Get roomId by socket ID (for student-signal relay)
+     */
+    getRoomIdBySocket(socketId) {
+        return this.userRooms.get(socketId) ?? null;
     }
 
     /**

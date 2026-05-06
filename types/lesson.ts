@@ -1,6 +1,6 @@
 // Lesson and Class Mode Type Definitions
 
-export type LanguageCode = 'german' | 'french' | 'spanish';
+export type LanguageCode = 'german' | 'french' | 'spanish' | 'english' | 'chinese';
 export type CEFRLevel = 'A1.1' | 'A1.2' | 'A2.1' | 'A2.2' | 'B1.1' | 'B1.2' | 'B2.1' | 'B2.2' | 'C1' | 'C2';
 export type LessonPhase = 'introduction' | 'grammar' | 'vocabulary' | 'practice' | 'assessment' | 'review';
 export type ExerciseType = 'dialog' | 'roleplay' | 'grammar-drill' | 'vocabulary' | 'dictation' | 'comprehension';
