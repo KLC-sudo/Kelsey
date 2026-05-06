@@ -10,6 +10,7 @@ import RoomManager from './roomManager.js';
 import userRoutes from './routes/users.js';
 import lessonRoutes from './routes/lessons.js';
 import livekitRoutes from './routes/livekit.js';
+import { initDb } from './db.js';
 
 dotenv.config();
 
@@ -201,8 +202,12 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Signaling server running on port ${PORT}`);
-    console.log(`📡 WebSocket endpoint: ws://0.0.0.0:${PORT}`);
-    console.log(`🏥 Health check: http://0.0.0.0:${PORT}/health`);
-});
+(async () => {
+    await initDb();
+    console.log('🗄️  Database ready');
+    httpServer.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Signaling server running on port ${PORT}`);
+        console.log(`📡 WebSocket endpoint: ws://0.0.0.0:${PORT}`);
+        console.log(`🏥 Health check: http://0.0.0.0:${PORT}/health`);
+    });
+})();
