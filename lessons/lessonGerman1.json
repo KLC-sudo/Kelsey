@@ -1,0 +1,314 @@
+{
+  "id": "german-A1.1-lesson-01",
+  "language": "german",
+  "level": "A1.1",
+  "lessonNumber": 1,
+  "topic": "Alphabet, Phonetics & Greetings",
+  "grammarFocus": [
+    {
+      "name": "Verb 'sein' (to be)",
+      "explanation": "The verb 'sein' is irregular and essential for identifying yourself and others. It corresponds to 'to be' in English.",
+      "examples": [
+        "Ich bin Lehrer (I am a teacher)",
+        "Du bist freundlich (You are friendly)",
+        "Er ist hier (He is here)",
+        "Sie ist Maria (She is Maria)"
+      ],
+      "commonMistakes": [
+        "Confusing 'bin' and 'bist' (e.g., saying 'du bin' instead of 'du bist')",
+        "Lowercase 'Ich' (In German, 'ich' is only capitalized at the start of a sentence, unlike the English 'I')"
+      ]
+    },
+    {
+      "name": "Personal Pronouns (Singular)",
+      "explanation": "Personal pronouns replace nouns. In A1.1, we focus on the singular forms used for direct address and description.",
+      "examples": [
+        "Ich (I)",
+        "Du (You - informal)",
+        "Er (He)",
+        "Sie (She)"
+      ],
+      "commonMistakes": [
+        "Using 'du' for formal situations (social mistake)",
+        "Confusing 'sie' (she) with 'Sie' (formal you)"
+      ]
+    }
+  ],
+  "vocabulary": [
+    {
+      "target": "Guten Morgen",
+      "translation": "Good morning",
+      "partOfSpeech": "phrase",
+      "example": "Guten Morgen, wie geht es dir?",
+      "exampleTranslation": "Good morning, how are you?"
+    },
+    {
+      "target": "Guten Tag",
+      "translation": "Good day / Hello",
+      "partOfSpeech": "phrase",
+      "example": "Guten Tag, mein Name ist Schmidt.",
+      "exampleTranslation": "Good day, my name is Schmidt."
+    },
+    {
+      "target": "Guten Abend",
+      "translation": "Good evening",
+      "partOfSpeech": "phrase",
+      "example": "Guten Abend, Herr Weber.",
+      "exampleTranslation": "Good evening, Mr. Weber."
+    },
+    {
+      "target": "Gute Nacht",
+      "translation": "Good night",
+      "partOfSpeech": "phrase",
+      "example": "Gute Nacht, schlaf gut!",
+      "exampleTranslation": "Good night, sleep well!"
+    },
+    {
+      "target": "Auf Wiedersehen",
+      "translation": "Goodbye",
+      "partOfSpeech": "phrase",
+      "example": "Auf Wiedersehen, bis morgen!",
+      "exampleTranslation": "Goodbye, see you tomorrow!"
+    },
+    {
+      "target": "Tschüss",
+      "translation": "Bye",
+      "partOfSpeech": "interjection",
+      "example": "Tschüss, Papa!",
+      "exampleTranslation": "Bye, Dad!"
+    },
+    {
+      "target": "der Name",
+      "translation": "the name",
+      "partOfSpeech": "noun",
+      "example": "Mein Name ist Lukas.",
+      "exampleTranslation": "My name is Lukas."
+    },
+    {
+      "target": "heißen",
+      "translation": "to be called",
+      "partOfSpeech": "verb",
+      "example": "Ich heiße Sarah.",
+      "exampleTranslation": "My name is Sarah (I am called Sarah)."
+    },
+    {
+      "target": "wer",
+      "translation": "who",
+      "partOfSpeech": "pronoun",
+      "example": "Wer bist du?",
+      "exampleTranslation": "Who are you?"
+    },
+    {
+      "target": "wie",
+      "translation": "how",
+      "partOfSpeech": "adverb",
+      "example": "Wie heißt du?",
+      "exampleTranslation": "What is your name? (How are you called?)"
+    },
+    {
+      "target": "das Alphabet",
+      "translation": "the alphabet",
+      "partOfSpeech": "noun",
+      "example": "Das deutsche Alphabet hat 26 Buchstaben.",
+      "exampleTranslation": "The German alphabet has 26 letters."
+    },
+    {
+      "target": "buchstabieren",
+      "translation": "to spell",
+      "partOfSpeech": "verb",
+      "example": "Können Sie das buchstabieren?",
+      "exampleTranslation": "Can you spell that?"
+    },
+    {
+      "target": "nett",
+      "translation": "nice / kind",
+      "partOfSpeech": "adjective",
+      "example": "Du bist sehr nett.",
+      "exampleTranslation": "You are very nice."
+    },
+    {
+      "target": "und",
+      "translation": "and",
+      "partOfSpeech": "preposition",
+      "example": "Ich und du.",
+      "exampleTranslation": "I and you."
+    },
+    {
+      "target": "auch",
+      "translation": "also / too",
+      "partOfSpeech": "adverb",
+      "example": "Ich bin auch hier.",
+      "exampleTranslation": "I am also here."
+    },
+    {
+      "target": "Frau",
+      "translation": "Mrs. / Woman",
+      "partOfSpeech": "noun",
+      "example": "Das ist Frau Bauer.",
+      "exampleTranslation": "That is Mrs. Bauer."
+    },
+    {
+      "target": "Herr",
+      "translation": "Mr. / Man",
+      "partOfSpeech": "noun",
+      "example": "Guten Tag, Herr Müller.",
+      "exampleTranslation": "Good day, Mr. Müller."
+    },
+    {
+      "target": "freut mich",
+      "translation": "nice to meet you",
+      "partOfSpeech": "phrase",
+      "example": "Hallo, ich bin Anna. - Freut mich!",
+      "exampleTranslation": "Hello, I am Anna. - Nice to meet you!"
+    },
+    {
+      "target": "ja",
+      "translation": "yes",
+      "partOfSpeech": "interjection",
+      "example": "Bist du Student? Ja.",
+      "exampleTranslation": "Are you a student? Yes."
+    },
+    {
+      "target": "nein",
+      "translation": "no",
+      "partOfSpeech": "interjection",
+      "example": "Bist du Lehrer? Nein.",
+      "exampleTranslation": "Are you a teacher? No."
+    }
+  ],
+  "exercises": [
+    {
+      "id": "german-A1.1-lesson-01-ex-01",
+      "type": "dialog",
+      "phase": "introduction",
+      "prompt": "Greet the student and ask for their name. Encourage them to reply using 'Ich bin' or 'Ich heiße'.",
+      "hints": [
+        "Say: Hallo! Wie heißt du?",
+        "Remind them to use: Ich bin [Name]"
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-02",
+      "type": "grammar-drill",
+      "phase": "grammar",
+      "prompt": "Provide the pronouns 'Ich', 'Du', and 'Er/Sie' and ask the student to conjugate 'sein' for each.",
+      "hints": [
+        "Ich -> bin",
+        "Du -> bist",
+        "Er/Sie -> ist"
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-03",
+      "type": "vocabulary",
+      "phase": "vocabulary",
+      "prompt": "Practice time-of-day greetings. Ask the student how they would greet someone at 8:00, 14:00, and 20:00.",
+      "hints": [
+        "8:00 = Morgen",
+        "14:00 = Tag",
+        "20:00 = Abend"
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-04",
+      "type": "roleplay",
+      "phase": "practice",
+      "prompt": "Roleplay a meeting at a cafe. The tutor is 'Herr Schmidt' and the student should introduce themselves formally.",
+      "hints": [
+        "Use 'Guten Tag'",
+        "Use 'Freut mich'"
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-05",
+      "type": "comprehension",
+      "phase": "assessment",
+      "prompt": "Listen to the tutor spell a simple name (e.g., A-N-N-A) and write down the result.",
+      "hints": [
+        "Focus on the vowel sounds like 'A' (ah) and 'E' (ay)"
+      ],
+      "duration": 180
+    }
+  ],
+  "totalDuration": 300,
+  "phases": [
+    {
+      "phase": "introduction",
+      "duration": 15,
+      "objectives": [
+        "Identify basic German greeting sounds",
+        "Exchange names"
+      ],
+      "exercises": [
+        "german-A1.1-lesson-01-ex-01"
+      ]
+    },
+    {
+      "phase": "grammar",
+      "duration": 60,
+      "objectives": [
+        "Conjugate 'sein' in the singular",
+        "Identify basic personal pronouns"
+      ],
+      "exercises": [
+        "german-A1.1-lesson-01-ex-02"
+      ]
+    },
+    {
+      "phase": "vocabulary",
+      "duration": 45,
+      "objectives": [
+        "Recognize time-dependent greetings",
+        "Learn basic meeting vocabulary"
+      ],
+      "exercises": [
+        "german-A1.1-lesson-01-ex-03"
+      ]
+    },
+    {
+      "phase": "practice",
+      "duration": 120,
+      "objectives": [
+        "Engage in a simple introductory dialogue",
+        "Apply grammar in a conversational context"
+      ],
+      "exercises": [
+        "german-A1.1-lesson-01-ex-04"
+      ]
+    },
+    {
+      "phase": "assessment",
+      "duration": 40,
+      "objectives": [
+        "Verify understanding of phonetic spelling",
+        "Demonstrate mastery of 'sein' forms"
+      ],
+      "exercises": [
+        "german-A1.1-lesson-01-ex-05"
+      ]
+    },
+    {
+      "phase": "review",
+      "duration": 20,
+      "objectives": [
+        "Recap greetings",
+        "Summarize 'sein' conjugation"
+      ],
+      "exercises": []
+    }
+  ],
+  "learningObjectives": [
+    "Use 'sein' in present tense for singular persons",
+    "Greet others and say goodbye using culturally appropriate phrases",
+    "Introduce yourself and spell your name using German phonetics"
+  ],
+  "prerequisites": [],
+  "generatedAt": "2026-04-29T17:00:00.000Z",
+  "generatedBy": "gemini-3-flash",
+  "reviewed": false,
+  "reviewedBy": null
+}

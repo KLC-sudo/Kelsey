@@ -1,0 +1,33 @@
+Technical Architecture
+1. Frontend (React + Vite + TypeScript)
+Core Technology: React 19, Vite, TypeScript, and Tailwind CSS.
+Main Logic (App.tsx): Manages the application's complex state, including:
+Gemini Live API: Integrated via @google/genai using the gemini-live-2.5-flash-native-audio model for real-time, low-latency audio tutoring.
+App Modes: Supports Free Mode (casual conversation) and Class Mode (structured lessons with defined phases like introduction, grammar, practice, and assessment).
+WebRTC Integration: Uses a custom useWebRTC hook for human-to-human tutoring sessions (tutor and student roles).
+State Synchronization: Uses a StateSyncManager to keep the tutor and student in sync regarding lesson phases, whiteboard notes, and session state.
+2. Backend (Signaling Server)
+Technology: Node.js, Express, and Socket.io.
+Purpose: Acts as a signaling server for WebRTC (offer/answer/ICE candidates) and handles real-time state synchronization between participants in a room.
+Room Management: Manages room creation, joining, and disconnection logic.
+3. AI Integration
+Real-time Tutoring: Uses Gemini 2.5 Flash for high-performance audio interaction.
+Content Generation (lessonGenerator.ts): Uses Gemini 2.0 Flash to automatically generate comprehensive lesson plans, including vocabulary, grammar concepts, and exercises based on CEFR levels (A1.1 to C2).
+Session Summarization: Analyzes transcripts to provide feedback, corrections, and new vocabulary lists at the end of sessions.
+Key Features
+Multilingual Support: Configured for German, French, Spanish, Chinese, and English.
+Structured Learning: Lessons are broken into segments with specific learning objectives and duration tracking.
+Interactive Whiteboard: A shared space for tutors to add notes that synchronize instantly to students.
+Progress Tracking: Tracks study time, lesson completion, and performance scores locally.
+Accessibility Tools: Includes "Hover to Translate" and audio visualizers to assist learners.
+Export Capabilities: Supports exporting session summaries and lesson data, including PDF generation.
+Project Structure
+components/: UI components (HUD, Whiteboard, Flashcards, etc.).
+hooks/: Custom React hooks (WebRTC, lifecycle).
+lessons/: JSON data for pre-generated lessons.
+server/: Signaling server implementation.
+utils/: Core logic for audio processing, lesson generation, session management, and state sync.
+types/: Comprehensive TypeScript definitions for the domain model.
+This project is a high-fidelity implementation of an AI tutor, designed for both autonomous AI-led learning and facilitated human tutoring.
+
+3:21 PM

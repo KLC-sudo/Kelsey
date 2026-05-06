@@ -1,0 +1,232 @@
+{
+  "id": "german-A1.1-lesson-01",
+  "language": "german",
+  "level": "A1.1",
+  "lessonNumber": 1,
+  "topic": "Alphabet, Phonetics & Greetings",
+  "grammarFocus": [
+    {
+      "name": "Verb 'sein' in Context",
+      "explanation": "In textbooks, we see how 'sein' (to be) connects people to their identities. We use 'bin' for ourselves and 'ist' for others.",
+      "examples": [
+        "Das ist Herr Müller. Er ist Lehrer. (That is Mr. Müller. He is a teacher.)",
+        "Ich bin Studentin. (I am a [female] student.)"
+      ],
+      "commonMistakes": [
+        "Mixing up 'sein' with the English 'be' (e.g., 'Ich sein' instead of 'Ich bin')",
+        "Lowercase 'Sie' when you mean formal 'You'"
+      ]
+    }
+  ],
+  "vocabulary": [
+    {
+      "target": "der Text",
+      "translation": "the text",
+      "partOfSpeech": "noun",
+      "example": "Lies den Text.",
+      "exampleTranslation": "Read the text."
+    },
+    {
+      "target": "verstehen",
+      "translation": "to understand",
+      "partOfSpeech": "verb",
+      "example": "Verstehst du das?",
+      "exampleTranslation": "Do you understand that?"
+    },
+    {
+      "target": "die Begrüßung",
+      "translation": "the greeting",
+      "partOfSpeech": "noun",
+      "example": "Hallo ist eine Begrüßung.",
+      "exampleTranslation": "Hello is a greeting."
+    },
+    {
+      "target": "wer",
+      "translation": "who",
+      "partOfSpeech": "pronoun",
+      "example": "Wer ist das?",
+      "exampleTranslation": "Who is that?"
+    },
+    {
+      "target": "woher",
+      "translation": "where from",
+      "partOfSpeech": "adverb",
+      "example": "Woher kommst du?",
+      "exampleTranslation": "Where are you from?"
+    },
+    {
+      "target": "aus",
+      "translation": "from",
+      "partOfSpeech": "preposition",
+      "example": "Ich komme aus Berlin.",
+      "exampleTranslation": "I come from Berlin."
+    },
+    {
+      "target": "schreiben",
+      "translation": "to write",
+      "partOfSpeech": "verb",
+      "example": "Schreib deinen Namen.",
+      "exampleTranslation": "Write your name."
+    },
+    {
+      "target": "lesen",
+      "translation": "to read",
+      "partOfSpeech": "verb",
+      "example": "Lies bitte laut.",
+      "exampleTranslation": "Please read aloud."
+    },
+    {
+      "target": "antworten",
+      "translation": "to answer",
+      "partOfSpeech": "verb",
+      "example": "Antworte auf die Frage.",
+      "exampleTranslation": "Answer the question."
+    },
+    {
+      "target": "die Frage",
+      "translation": "the question",
+      "partOfSpeech": "noun",
+      "example": "Hast du eine Frage?",
+      "exampleTranslation": "Do you have a question?"
+    },
+    {
+      "target": "Vorname",
+      "translation": "first name",
+      "partOfSpeech": "noun",
+      "example": "Mein Vorname ist Lukas.",
+      "exampleTranslation": "My first name is Lukas."
+    },
+    {
+      "target": "Nachname",
+      "translation": "last name",
+      "partOfSpeech": "noun",
+      "example": "Mein Nachname ist Weber.",
+      "exampleTranslation": "My last name is Weber."
+    },
+    {
+      "target": "buchstabieren",
+      "translation": "to spell",
+      "partOfSpeech": "verb",
+      "example": "Können Sie das buchstabieren?",
+      "exampleTranslation": "Can you spell that?"
+    },
+    {
+      "target": "Guten Tag",
+      "translation": "Good day",
+      "partOfSpeech": "phrase",
+      "example": "Guten Tag, Frau Meyer.",
+      "exampleTranslation": "Good day, Mrs. Meyer."
+    },
+    {
+      "target": "Freut mich",
+      "translation": "Pleased to meet you",
+      "partOfSpeech": "phrase",
+      "example": "Ich bin Anna. - Freut mich!",
+      "exampleTranslation": "I am Anna. - Pleased to meet you!"
+    }
+  ],
+  "exercises": [
+    {
+      "id": "german-A1.1-lesson-01-ex-01",
+      "type": "comprehension",
+      "phase": "introduction",
+      "prompt": "Textbook Activity 1: 'Global Reading'. Present the following text: 'Hallo! Ich bin Marco. Ich komme aus Italien. Das ist Sarah. Sie ist aus Deutschland.' Ask the student to identify the two names and two countries mentioned.",
+      "hints": [
+        "Names often start with capital letters.",
+        "Look for 'aus' to find the country."
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-02",
+      "type": "grammar-drill",
+      "phase": "grammar",
+      "prompt": "Textbook Activity 2: 'Language Discovery'. Look back at the text from Ex 1. Ask the student: Which word follows 'Ich'? Which word follows 'Sie'? Help them deduce the 'bin' vs 'ist' rule.",
+      "hints": [
+        "Ich -> ___ ?",
+        "Sie -> ___ ?"
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-03",
+      "type": "vocabulary",
+      "phase": "vocabulary",
+      "prompt": "Textbook Activity 3: 'Word Mapping'. Match the greetings (Guten Morgen, Guten Tag, Guten Abend) to a 24-hour clock visual (08:00, 13:00, 19:00).",
+      "hints": [
+        "Morgen is early.",
+        "Abend is late."
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-04",
+      "type": "dialog",
+      "phase": "practice",
+      "prompt": "Textbook Activity 4: 'Guided Dialogue'. Complete the gap-fill conversation: 'A: Hallo, wer ___ du? B: Ich ___ Julia. Und wer ___ das? A: Das ___ Herr Schmidt.'",
+      "hints": [
+        "Think about the singular 'sein' forms: bin, bist, ist."
+      ],
+      "duration": 180
+    },
+    {
+      "id": "german-A1.1-lesson-01-ex-05",
+      "type": "dictation",
+      "phase": "assessment",
+      "prompt": "Textbook Activity 5: 'Final Check'. The tutor spells a new name (e.g., M-A-R-I-A) and the student must write it down correctly to 'check in' to a fictional hotel.",
+      "hints": [
+        "Listen for 'Ah' vs 'Ee' sounds."
+      ],
+      "duration": 180
+    }
+  ],
+  "totalDuration": 300,
+  "phases": [
+    {
+      "phase": "introduction",
+      "duration": 15,
+      "objectives": ["Identify names and places in a short German text"],
+      "exercises": ["german-A1.1-lesson-01-ex-01"]
+    },
+    {
+      "phase": "grammar",
+      "duration": 60,
+      "objectives": ["Analyze 'sein' usage within a reading context"],
+      "exercises": ["german-A1.1-lesson-01-ex-02"]
+    },
+    {
+      "phase": "vocabulary",
+      "duration": 45,
+      "objectives": ["Categorize greetings based on time of day"],
+      "exercises": ["german-A1.1-lesson-01-ex-03"]
+    },
+    {
+      "phase": "practice",
+      "duration": 120,
+      "objectives": ["Produce a basic introductory dialogue using 'sein'"],
+      "exercises": ["german-A1.1-lesson-01-ex-04"]
+    },
+    {
+      "phase": "assessment",
+      "duration": 40,
+      "objectives": ["Demonstrate spelling and listening accuracy"],
+      "exercises": ["german-A1.1-lesson-01-ex-05"]
+    },
+    {
+      "phase": "review",
+      "duration": 20,
+      "objectives": ["Summarize key introductory phrases"],
+      "exercises": []
+    }
+  ],
+  "learningObjectives": [
+    "Extract specific information from a simple introductory text",
+    "Differentiate between 'bin', 'bist', and 'ist' in context",
+    "Corrects use greetings in a chronological day cycle"
+  ],
+  "prerequisites": [],
+  "generatedAt": "2026-04-29T21:48:00.000Z",
+  "generatedBy": "gemini-3-flash",
+  "reviewed": false,
+  "reviewedBy": null
+}
