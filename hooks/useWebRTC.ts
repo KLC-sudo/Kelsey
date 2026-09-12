@@ -6,11 +6,12 @@ const SIGNALING_SERVER_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.
 export interface UseSignalingOptions {
     roomId: string;
     isTutor: boolean;
+    displayName?: string;
     onPeerJoined?: () => void;
     onPeerLeft?: () => void;
 }
 
-export const useWebRTC = ({ roomId, isTutor, onPeerJoined, onPeerLeft }: UseSignalingOptions) => {
+export const useWebRTC = ({ roomId, isTutor, displayName, onPeerJoined, onPeerLeft }: UseSignalingOptions) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'failed'>('disconnected');
     const [error, setError] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export const useWebRTC = ({ roomId, isTutor, onPeerJoined, onPeerLeft }: UseSign
 
         if (isTutor) {
             console.log('📝 Tutor attempting to create room:', roomId);
-            socket.emit('create-room', { roomId, lessonId: null });
+            socket.emit('create-room', { roomId, lessonId: null, tutorName: displayName });
 
             socket.once('room-created', () => {
                 console.log('✅ Room successfully registered');
@@ -100,7 +101,7 @@ export const useWebRTC = ({ roomId, isTutor, onPeerJoined, onPeerLeft }: UseSign
             });
         } else {
             console.log('🔍 Student attempting to join room:', roomId);
-            socket.emit('join-room', { roomId });
+            socket.emit('join-room', { roomId, studentName: displayName });
 
             socket.once('room-joined', () => {
                 console.log('✅ Successfully joined room');

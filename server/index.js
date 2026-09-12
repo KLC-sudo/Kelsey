@@ -63,12 +63,13 @@ io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
 
     // Create room (tutor)
-    socket.on('create-room', ({ lessonId, roomId }) => {
+    socket.on('create-room', ({ lessonId, roomId, tutorName }) => {
         try {
             const createdRoomId = roomManager.createRoom(socket.id, lessonId, roomId);
+            if (tutorName) roomManager.setTutorName(createdRoomId, tutorName);
             socket.join(createdRoomId);
             socket.emit('room-created', { roomId: createdRoomId });
-            console.log(`Tutor ${socket.id} created room: ${createdRoomId}`);
+            console.log(`Tutor ${tutorName || socket.id} created room: ${createdRoomId}`);
         } catch (error) {
             console.error(`Error creating room:`, error.message);
             socket.emit('create-error', { error: error.message });
@@ -76,8 +77,8 @@ io.on('connection', (socket) => {
     });
 
     // Student joins an existing room
-    socket.on('join-room', ({ roomId }) => {
-        const result = roomManager.joinRoom(socket.id, roomId);
+    socket.on('join-room', ({ roomId, studentName }) => {
+        const result = roomManager.joinRoom(socket.id, roomId, studentName || 'Student');
 
         if (!result.success) {
             socket.emit('join-error', { error: result.error });
@@ -94,13 +95,30 @@ io.on('connection', (socket) => {
             console.log(`Sent ${currentCards.length} board cards to rejoining student in ${roomId}`);
         }
 
-        // Notify tutor that student has joined
+        // Get updated student list
+        const students = roomManager.getStudents(roomId.toUpperCase());
+        const tutor = roomManager.getTutor(roomId.toUpperCase());
+
+        // Notify tutor that student has joined (with full roster)
         io.to(result.tutorId).emit('peer-joined', {
             peerId: socket.id,
-            roomId
+            roomId,
+            students,
+            tutor
         });
 
-        console.log(`Student ${socket.id} joined room ${roomId}`);
+        // Notify all students in the room about the updated roster
+        io.to(roomId).emit('roster-update', { students, tutor });
+
+        console.log(`Student ${studentName || socket.id} joined room ${roomId}. Total: ${students.length}`);
+    });
+
+    // Get current roster for a room
+    socket.on('get-roster', ({ roomId }) => {
+        if (!roomId) return;
+        const students = roomManager.getStudents(roomId.toUpperCase());
+        const tutor = roomManager.getTutor(roomId.toUpperCase());
+        socket.emit('roster-update', { students, tutor });
     });
 
     // WebRTC signaling: Offer
@@ -188,6 +206,11 @@ io.on('connection', (socket) => {
                     reason: disconnectInfo.isTutor ? 'Tutor disconnected' : 'Student disconnected'
                 });
             }
+
+            // Send updated roster to remaining participants
+            const students = roomManager.getStudents(disconnectInfo.roomId);
+            const tutor = roomManager.getTutor(disconnectInfo.roomId);
+            io.to(disconnectInfo.roomId).emit('roster-update', { students, tutor });
         }
 
         console.log(`Client disconnected: ${socket.id}`);

@@ -111,6 +111,8 @@ const App: React.FC = () => {
         return state.isAuthenticated || state.isGuest;
     });
 
+    const account = loadAccount();
+
     // Initialize WebRTC (now only socket.io for state sync)
     const {
         connect,
@@ -121,6 +123,7 @@ const App: React.FC = () => {
     } = useWebRTC({
         roomId: roomCode || '',
         isTutor: isTutorMode,
+        displayName: account?.displayName || (isTutorMode ? 'Tutor' : 'Student'),
         onPeerJoined: () => {
             console.log('👥 Peer connected!');
         },
@@ -128,8 +131,6 @@ const App: React.FC = () => {
             console.log('👋 Peer disconnected');
         },
     });
-
-    const account = loadAccount();
     // LiveKit shelved for now — voice features disabled, whiteboard-only mode
     // const { token: livekitToken, wsUrl: livekitUrl, error: livekitError, connect: connectLivekit, disconnect: disconnectLivekit } = useLiveKitSession(roomCode || '', account?.id || '');
     const livekitToken = null;
@@ -1025,7 +1026,7 @@ const App: React.FC = () => {
         setFlaggedCards(new Map());
         setLastSentCardId(null);
         disconnect();
-        disconnectLivekit();
+        // disconnectLivekit(); // shelved with LiveKit
         setView('mode-select');
         setRoomCode(null);
         setIsTutorMode(false);
@@ -1209,7 +1210,7 @@ const App: React.FC = () => {
                             </div>
                         </div>
                         <div className="h-64 shrink-0">
-                            <StudentRoster />
+                            <StudentRoster socket={socket} roomId={roomCode || ''} isTutor={true} tutorName={account?.displayName || 'Tutor'} />
                         </div>
                     </div>
                 </main>

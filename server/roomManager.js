@@ -54,7 +54,9 @@ class RoomManager {
 
         this.rooms.set(finalRoomId, {
             tutorId: tutorSocketId,
+            tutorName: 'Tutor',
             studentId: null,
+            students: new Map(), // socketId -> { name, joinedAt }
             createdAt: Date.now(),
             lessonId,
             state: {},
@@ -72,7 +74,7 @@ class RoomManager {
     /**
      * Student joins an existing room
      */
-    joinRoom(studentSocketId, roomId) {
+    joinRoom(studentSocketId, roomId, studentName = 'Student') {
         if (!roomId) return { success: false, error: 'Missing room code' };
 
         const upperRoomId = roomId.toUpperCase();
@@ -84,18 +86,49 @@ class RoomManager {
             return { success: false, error: 'Room not found' };
         }
 
-        if (room.studentId && room.studentId !== studentSocketId && !room.studentDisconnected) {
-            console.log(`❌ [RoomManager] Join failed: ${upperRoomId} is full`);
-            return { success: false, error: 'Room is full' };
-        }
-
-        // Handle student reconnection
-        room.studentId = studentSocketId;
+        // Add student to the room (supports multiple students)
+        room.students.set(studentSocketId, { name: studentName, joinedAt: Date.now() });
+        room.studentId = studentSocketId; // Keep legacy field for backward compat
         room.studentDisconnected = false;
         this.userRooms.set(studentSocketId, upperRoomId);
 
-        console.log(`✅ [RoomManager] Student ${studentSocketId} joined room ${upperRoomId}`);
-        return { success: true, tutorId: room.tutorId };
+        // Get list of all students in the room
+        const studentList = this.getStudents(upperRoomId);
+
+        console.log(`✅ [RoomManager] Student ${studentName} (${studentSocketId}) joined room ${upperRoomId}. Total: ${studentList.length}`);
+        return { success: true, tutorId: room.tutorId, students: studentList };
+    }
+
+    /**
+     * Set tutor name for a room
+     */
+    setTutorName(roomId, name) {
+        const room = this.rooms.get(roomId?.toUpperCase());
+        if (room) {
+            room.tutorName = name;
+        }
+    }
+
+    /**
+     * Get all students in a room
+     */
+    getStudents(roomId) {
+        const room = this.rooms.get(roomId?.toUpperCase());
+        if (!room) return [];
+        return Array.from(room.students.entries()).map(([socketId, info]) => ({
+            socketId,
+            name: info.name,
+            joinedAt: info.joinedAt
+        }));
+    }
+
+    /**
+     * Get tutor info for a room
+     */
+    getTutor(roomId) {
+        const room = this.rooms.get(roomId?.toUpperCase());
+        if (!room) return null;
+        return { socketId: room.tutorId, name: room.tutorName };
     }
 
     /**
@@ -188,8 +221,11 @@ class RoomManager {
             room.tutorDisconnected = true;
             console.log(`⚠️ Tutor disconnected from ${roomId}. Waiting for reconnection...`);
         } else {
-            room.studentDisconnected = true;
-            console.log(`⚠️ Student disconnected from ${roomId}. Waiting for reconnection...`);
+            // Remove student from the students map
+            room.students.delete(socketId);
+            room.studentDisconnected = room.students.size === 0;
+            const studentList = this.getStudents(roomId);
+            console.log(`⚠️ Student disconnected from ${roomId}. Remaining: ${studentList.length}`);
         }
 
         // Set a timeout to cleanup after 60 seconds of inactivity

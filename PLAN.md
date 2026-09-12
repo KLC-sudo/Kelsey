@@ -201,3 +201,59 @@ Only 5 German A1.1 lessons exist. No lessons for French, Spanish, Chinese, Engli
 | `components/LiveBoard.tsx` | Fix card animation index | P1 |
 | `App.tsx:298-368` | Add CHANGE_PHASE sync | P1 |
 | `utils/account.ts` | Add localStorage fallback for API failures | P1 |
+
+---
+
+## Phase 5: Digi School Features (Post-MVP)
+
+### 5.1 Student Dashboard
+- [ ] **Enrolled lessons list** — show assigned lessons with lock/unlock status
+- [ ] **Progress overview** — current level, streak, total study time, average score
+- [ ] **Session history** — past sessions with tutor name, date, score, cards reviewed
+- [ ] **Upcoming sessions** — scheduled sessions with tutors (requires scheduling system)
+- [ ] **Profile settings** — name, email, preferred language, learning goals
+
+### 5.2 Tutor Dashboard
+- [ ] **Student roster** — list of assigned students with progress data
+- [ ] **Lesson planner** — assign lessons to students, schedule sessions
+- [ ] **Session history** — past sessions with student names, outcomes, flags
+- [ ] **Student progress view** — drill into individual student scores, weak areas
+- [ ] **Availability calendar** — set available hours for booking
+- [ ] **Profile settings** — name, bio, subjects, languages taught
+
+### 5.3 Scheduling System
+- [ ] **Session booking** — student requests a session, tutor accepts/declines
+- [ ] **Calendar view** — both roles see upcoming sessions
+- [ ] **Notifications** — email/in-app reminders before sessions
+- [ ] **Recurring sessions** — weekly lesson scheduling
+
+### 5.4 Lesson Management
+- [ ] **Lesson library** — browse all available lessons by language/level
+- [ ] **Lesson assignment** — tutor assigns specific lessons to students
+- [ ] **Homework system** — post-session exercises for independent study
+- [ ] **Assessment grading** — tutor reviews and scores student work
+
+### 5.5 Communication
+- [ ] **Pre-session messaging** — student/tutor chat before session
+- [ ] **Post-session feedback** — rate session, leave comments
+- [ ] **Announcements** — tutor broadcasts to all students
+- [ ] **File sharing** — share documents, audio recordings, notes
+
+### 5.6 Analytics & Reporting
+- [ ] **Student analytics** — progress charts, time spent, level progression
+- [ ] **Tutor analytics** — session count, student satisfaction, earnings
+- [ ] **Export reports** — PDF reports for students/parents
+- [ ] **Leaderboard** — optional gamification with rankings
+
+### 5.7 Multi-Student Sessions
+- [ ] **Group classes** — tutor teaches multiple students simultaneously
+- [ ] **Breakout rooms** — split students into pairs for practice
+- [ ] **Student roster panel** — live list of all participants (DONE - Socket.io based)
+- [ ] **Mute/kick** — tutor can mute disruptive students
+
+### 5.8 Database Schema Additions
+- [ ] `sessions` table — scheduled sessions with tutor_id, student_id, lesson_id, datetime, status
+- [ ] `assignments` table — lesson assignments with due dates
+- [ ] `messages` table — pre/post session messaging
+- [ ] `reviews` table — session ratings and feedback
+- [ ] `availability` table — tutor availability slots
