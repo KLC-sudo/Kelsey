@@ -1,5 +1,5 @@
 import express from 'express';
-import db from '../db.js';
+import { getDB } from '../db.js';
 
 const router = express.Router();
 
@@ -22,6 +22,8 @@ router.get('/', (req, res) => {
     
     query += ' ORDER BY lesson_number ASC';
 
+    const db = getDB();
+
     try {
         const stmt = db.prepare(query);
         const lessons = stmt.all(...params);
@@ -34,6 +36,8 @@ router.get('/', (req, res) => {
 
 // Get a single lesson by ID
 router.get('/:id', (req, res) => {
+    const db = getDB();
+
     try {
         const stmt = db.prepare('SELECT content FROM lessons WHERE id = ?');
         const lesson = stmt.get(req.params.id);
@@ -56,6 +60,8 @@ router.post('/', (req, res) => {
     if (!lessonData || !lessonData.id) {
         return res.status(400).json({ error: 'Invalid lesson data' });
     }
+
+    const db = getDB();
 
     try {
         const stmt = db.prepare(`

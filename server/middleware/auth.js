@@ -1,4 +1,5 @@
-import db from '../db.js';
+import express from 'express';
+import { getDB } from '../db.js';
 
 export const requireAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -7,13 +8,14 @@ export const requireAuth = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
+    const db = getDB();
     
     try {
         const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
         const user = stmt.get(token);
         
         if (!user) {
-            console.warn(`🔒 Auth failure: User not found for ID "${token}"`);
+            console.warn(`Auth failure: User not found for ID "${token}"`);
             return res.status(401).json({ error: 'Invalid token/user not found' });
         }
         

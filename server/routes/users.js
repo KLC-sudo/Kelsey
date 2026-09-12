@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import db from '../db.js';
+import { getDB } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -27,6 +27,7 @@ router.post('/', createAccountLimiter, (req, res) => {
 
     const id = generateId();
     const now = Date.now();
+    const db = getDB();
 
     try {
         const stmt = db.prepare(`
@@ -42,7 +43,7 @@ router.post('/', createAccountLimiter, (req, res) => {
             role, 
             createdAt: now, 
             lastLoginAt: now,
-            token: id // For display-name auth, the ID acts as the bearer token
+            token: id
         });
     } catch (err) {
         console.error('Error creating user:', err);
@@ -63,6 +64,8 @@ router.get('/:id/progress', requireAuth, (req, res) => {
     if (req.user.id !== req.params.id) {
         return res.status(403).json({ error: 'Forbidden' });
     }
+
+    const db = getDB();
 
     try {
         const stmt = db.prepare('SELECT * FROM user_progress WHERE user_id = ?');
@@ -96,6 +99,7 @@ router.put('/:id/progress', requireAuth, (req, res) => {
     } = req.body;
 
     const now = Date.now();
+    const db = getDB();
 
     try {
         const stmt = db.prepare(`
@@ -139,6 +143,8 @@ router.get('/:id/history', requireAuth, (req, res) => {
         return res.status(403).json({ error: 'Forbidden' });
     }
 
+    const db = getDB();
+
     try {
         const stmt = db.prepare('SELECT * FROM review_sessions WHERE user_id = ? ORDER BY date DESC');
         const sessions = stmt.all(req.params.id);
@@ -163,6 +169,8 @@ router.post('/:id/history', requireAuth, (req, res) => {
         sessionId, lessonId, lessonTopic, language, level, 
         date, durationSeconds, tutorName, cards, cardCount, flaggedCount 
     } = req.body;
+
+    const db = getDB();
 
     try {
         const stmt = db.prepare(`

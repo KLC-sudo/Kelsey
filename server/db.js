@@ -1,43 +1,33 @@
-/**
- * db.js — Pure-JS SQLite using sql.js (no native compilation required)
- * Works on Node 18/20/22 with zero C++ build dependencies.
- * Database is persisted to disk via fs sync after every write.
- */
-
 import initSqlJs from 'sql.js';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'kelsey.db');
 
-// sql.js is async at init, but synchronous for queries.
-// We export a wrapper that mimics the better-sqlite3 synchronous API.
-let _db = null;
+let rawDB = null;
 
-async function initDb() {
+/**
+ * Initialize the sql.js database (async).
+ * Must be called once before the server starts accepting requests.
+ */
+export async function initDB() {
     const SQL = await initSqlJs();
+
     if (fs.existsSync(dbPath)) {
-        const fileBuffer = fs.readFileSync(dbPath);
-        _db = new SQL.Database(fileBuffer);
+        const buffer = fs.readFileSync(dbPath);
+        rawDB = new SQL.Database(buffer);
     } else {
-        _db = new SQL.Database();
+        rawDB = new SQL.Database();
     }
-    createTables();
-    return _db;
-}
 
-function persistDb() {
-    if (!_db) return;
-    const data = _db.export();
-    fs.writeFileSync(dbPath, Buffer.from(data));
-}
+    rawDB.run('PRAGMA journal_mode = DELETE');
 
-function createTables() {
-    _db.exec(`
+    // Initialize tables
+    rawDB.run(`
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
             display_name TEXT NOT NULL,
@@ -45,8 +35,10 @@ function createTables() {
             role TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             last_login_at INTEGER NOT NULL
-        );
+        )
+    `);
 
+    rawDB.run(`
         CREATE TABLE IF NOT EXISTS user_progress (
             user_id TEXT PRIMARY KEY,
             language TEXT NOT NULL,
@@ -58,8 +50,10 @@ function createTables() {
             average_score INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id)
-        );
+        )
+    `);
 
+    rawDB.run(`
         CREATE TABLE IF NOT EXISTS review_sessions (
             session_id TEXT PRIMARY KEY,
             user_id TEXT,
@@ -74,8 +68,10 @@ function createTables() {
             card_count INTEGER NOT NULL,
             flagged_count INTEGER NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id)
-        );
+        )
+    `);
 
+    rawDB.run(`
         CREATE TABLE IF NOT EXISTS lessons (
             id TEXT PRIMARY KEY,
             language TEXT NOT NULL,
@@ -84,52 +80,96 @@ function createTables() {
             topic TEXT NOT NULL,
             content TEXT NOT NULL,
             generated_at TEXT
-        );
+        )
     `);
-    persistDb();
+
+    saveDB();
+    console.log('✅ Database initialized at', dbPath);
 }
 
 /**
- * Synchronous-style wrapper around sql.js to match the better-sqlite3 API.
- * Usage: db.prepare(sql).run(...params) / db.prepare(sql).get(...params) / db.prepare(sql).all(...params)
+ * Persist the in-memory database to disk.
  */
-class DbWrapper {
-    prepare(sql) {
-        return {
-            run: (...params) => {
-                _db.run(sql, params.flat());
-                persistDb();
-            },
-            get: (...params) => {
-                const stmt = _db.prepare(sql);
-                stmt.bind(params.flat());
-                if (stmt.step()) {
-                    const row = stmt.getAsObject();
-                    stmt.free();
-                    return row;
-                }
-                stmt.free();
-                return null;
-            },
-            all: (...params) => {
-                const results = [];
-                const stmt = _db.prepare(sql);
-                stmt.bind(params.flat());
-                while (stmt.step()) {
-                    results.push(stmt.getAsObject());
-                }
-                stmt.free();
-                return results;
-            }
-        };
-    }
-
-    exec(sql) {
-        _db.exec(sql);
-        persistDb();
-    }
+export function saveDB() {
+    if (!rawDB) return;
+    const data = rawDB.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(dbPath, buffer);
 }
 
-const db = new DbWrapper();
-export { initDb };
-export default db;
+/**
+ * better-sqlite3 compatibility wrapper.
+ * Returns an object with prepare(), exec(), close(), pragma()
+ * so all existing route code works unchanged.
+ */
+function wrapDB(raw) {
+    return {
+        prepare(sql) {
+            return {
+                run(...params) {
+                    raw.run(sql, params);
+                    const changes = raw.getRowsModified();
+                    return { changes, lastInsertRowid: null };
+                },
+                get(...params) {
+                    const results = raw.exec(sql, params);
+                    if (!results || results.length === 0) return undefined;
+                    const { columns, values } = results[0];
+                    if (values.length === 0) return undefined;
+                    const row = {};
+                    columns.forEach((col, i) => { row[col] = values[0][i]; });
+                    return row;
+                },
+                all(...params) {
+                    const results = raw.exec(sql, params);
+                    if (!results || results.length === 0) return [];
+                    const { columns, values } = results[0];
+                    return values.map(row => {
+                        const obj = {};
+                        columns.forEach((col, i) => { obj[col] = row[i]; });
+                        return obj;
+                    });
+                },
+            };
+        },
+        exec(sql) {
+            raw.run(sql);
+        },
+        pragma(pragmaStr) {
+            raw.run(`PRAGMA ${pragmaStr}`);
+        },
+        close() {
+            raw.close();
+        },
+    };
+}
+
+/**
+ * Get the wrapped database instance.
+ * Throws if initDB() hasn't been called yet.
+ */
+export function getDB() {
+    if (!rawDB) {
+        throw new Error('Database not initialized. Call initDB() first.');
+    }
+    return wrapDB(rawDB);
+}
+
+// Auto-save on process exit
+process.on('SIGINT', () => {
+    if (rawDB) {
+        saveDB();
+        rawDB.close();
+    }
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    if (rawDB) {
+        saveDB();
+        rawDB.close();
+    }
+    process.exit(0);
+});
+
+export default { initDB, getDB, saveDB };

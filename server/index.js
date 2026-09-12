@@ -6,11 +6,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import RoomManager from './roomManager.js';
+import { initDB } from './db.js';
 
 import userRoutes from './routes/users.js';
 import lessonRoutes from './routes/lessons.js';
 import livekitRoutes from './routes/livekit.js';
-import { initDb } from './db.js';
 
 dotenv.config();
 
@@ -18,7 +18,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
         methods: ['GET', 'POST']
     }
 });
@@ -51,7 +51,6 @@ app.use(express.static(distPath));
 
 // Fallback for SPA routing
 app.get('*', (req, res) => {
-    // Exclude API routes from fallback
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'API route not found' });
     }
@@ -60,7 +59,7 @@ app.get('*', (req, res) => {
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
-    console.log(`🔌 Client connected: ${socket.id}`);
+    console.log(`Client connected: ${socket.id}`);
 
     // Create room (tutor)
     socket.on('create-room', ({ lessonId, roomId }) => {
@@ -68,9 +67,9 @@ io.on('connection', (socket) => {
             const createdRoomId = roomManager.createRoom(socket.id, lessonId, roomId);
             socket.join(createdRoomId);
             socket.emit('room-created', { roomId: createdRoomId });
-            console.log(`📝 Tutor ${socket.id} created room: ${createdRoomId}`);
+            console.log(`Tutor ${socket.id} created room: ${createdRoomId}`);
         } catch (error) {
-            console.error(`❌ Error creating room:`, error.message);
+            console.error(`Error creating room:`, error.message);
             socket.emit('create-error', { error: error.message });
         }
     });
@@ -91,7 +90,7 @@ io.on('connection', (socket) => {
         const currentCards = roomManager.getBoardCards(roomId.toUpperCase());
         if (currentCards.length > 0) {
             socket.emit('board-rehydrate', { cards: currentCards });
-            console.log(`📦 Sent ${currentCards.length} board cards to rejoining student in ${roomId}`);
+            console.log(`Sent ${currentCards.length} board cards to rejoining student in ${roomId}`);
         }
 
         // Notify tutor that student has joined
@@ -100,7 +99,7 @@ io.on('connection', (socket) => {
             roomId
         });
 
-        console.log(`👥 Student ${socket.id} joined room ${roomId}`);
+        console.log(`Student ${socket.id} joined room ${roomId}`);
     });
 
     // WebRTC signaling: Offer
@@ -108,7 +107,6 @@ io.on('connection', (socket) => {
         const room = roomManager.getRoom(roomId);
         if (!room) return;
 
-        // Forward offer to student
         if (room.studentId) {
             io.to(room.studentId).emit('webrtc-offer', {
                 offer,
@@ -122,7 +120,6 @@ io.on('connection', (socket) => {
         const room = roomManager.getRoom(roomId);
         if (!room) return;
 
-        // Forward answer to tutor
         io.to(room.tutorId).emit('webrtc-answer', {
             answer,
             peerId: socket.id
@@ -134,7 +131,6 @@ io.on('connection', (socket) => {
         const room = roomManager.getRoom(roomId);
         if (!room) return;
 
-        // Forward to the other peer
         const targetId = room.tutorId === socket.id ? room.studentId : room.tutorId;
         if (targetId) {
             io.to(targetId).emit('ice-candidate', {
@@ -149,7 +145,6 @@ io.on('connection', (socket) => {
         const room = roomManager.getRoom(roomId);
         if (!room || room.tutorId !== socket.id) return;
 
-        // Maintain server-side board card state
         if (stateEvent.type === 'PUSH_CARD') {
             roomManager.pushBoardCard(roomId, stateEvent.card);
         } else if (stateEvent.type === 'RETRACT_CARD') {
@@ -164,7 +159,7 @@ io.on('connection', (socket) => {
             io.to(room.studentId).emit('state-update', { stateEvent });
         }
 
-        console.log(`🔄 State update in room ${roomId}:`, stateEvent.type);
+        console.log(`State update in room ${roomId}:`, stateEvent.type);
     });
 
     // Student -> Tutor signal relay (flags, annotations)
@@ -173,13 +168,12 @@ io.on('connection', (socket) => {
         const room = roomManager.getRoom(upperRoomId);
         if (!room || room.studentId !== socket.id) return;
 
-        // Forward only to tutor
         io.to(room.tutorId).emit('student-signal', {
             signal,
             peerId: socket.id
         });
 
-        console.log(`🚩 Student signal in room ${upperRoomId}:`, signal.type);
+        console.log(`Student signal in room ${upperRoomId}:`, signal.type);
     });
 
     // Handle disconnect
@@ -187,7 +181,6 @@ io.on('connection', (socket) => {
         const disconnectInfo = roomManager.handleDisconnect(socket.id);
 
         if (disconnectInfo) {
-            // Notify the other peer
             if (disconnectInfo.otherUserId) {
                 io.to(disconnectInfo.otherUserId).emit('peer-left', {
                     roomId: disconnectInfo.roomId,
@@ -196,18 +189,25 @@ io.on('connection', (socket) => {
             }
         }
 
-        console.log(`🔌 Client disconnected: ${socket.id}`);
+        console.log(`Client disconnected: ${socket.id}`);
     });
 });
 
 const PORT = process.env.PORT || 3001;
 
-(async () => {
-    await initDb();
-    console.log('🗄️  Database ready');
-    httpServer.listen(PORT, '0.0.0.0', () => {
-        console.log(`🚀 Signaling server running on port ${PORT}`);
-        console.log(`📡 WebSocket endpoint: ws://0.0.0.0:${PORT}`);
-        console.log(`🏥 Health check: http://0.0.0.0:${PORT}/health`);
-    });
-})();
+// Initialize database, then start server
+async function start() {
+    try {
+        await initDB();
+        httpServer.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running on port ${PORT}`);
+            console.log(`WebSocket endpoint: ws://0.0.0.0:${PORT}`);
+            console.log(`Health check: http://0.0.0.0:${PORT}/health`);
+        });
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    }
+}
+
+start();
