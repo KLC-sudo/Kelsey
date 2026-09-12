@@ -28,8 +28,10 @@ export const useWebRTC = ({ roomId, isTutor, onPeerJoined, onPeerLeft }: UseSign
      */
     useEffect(() => {
         const newSocket = io(SIGNALING_SERVER_URL, {
-            transports: ['websocket'],
+            transports: ['polling', 'websocket'],
             reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000,
         });
 
         newSocket.on('connect', () => {

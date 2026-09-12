@@ -130,15 +130,18 @@ const App: React.FC = () => {
     });
 
     const account = loadAccount();
-    const { token: livekitToken, wsUrl: livekitUrl, error: livekitError, connect: connectLivekit, disconnect: disconnectLivekit } = useLiveKitSession(roomCode || '', account?.id || '');
+    // LiveKit shelved for now — voice features disabled, whiteboard-only mode
+    // const { token: livekitToken, wsUrl: livekitUrl, error: livekitError, connect: connectLivekit, disconnect: disconnectLivekit } = useLiveKitSession(roomCode || '', account?.id || '');
+    const livekitToken = null;
+    const livekitUrl = null;
 
-    useEffect(() => {
-        if ((view === 'tutor-session' || view === 'student-session') && roomCode) {
-            connectLivekit();
-        } else {
-            disconnectLivekit();
-        }
-    }, [view, roomCode, connectLivekit, disconnectLivekit]);
+    // useEffect(() => {
+    //     if ((view === 'tutor-session' || view === 'student-session') && roomCode) {
+    //         connectLivekit();
+    //     } else {
+    //         disconnectLivekit();
+    //     }
+    // }, [view, roomCode, connectLivekit, disconnectLivekit]);
 
 
     // Fixed: Changed sessionPromiseRef type to any since LiveSession is not exported from @google/genai
@@ -1467,8 +1470,12 @@ const App: React.FC = () => {
                             </div>
                         )}
                         <div className="flex justify-center">
-                            <button onClick={isRecording ? stopConversation : startConversation} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${isRecording ? 'bg-red-500 hover:bg-red-600 scale-110 shadow-red-500/20' : 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'} shadow-xl`}>
-                                {isRecording ? <StopIcon className="w-8 h-8" /> : <MicrophoneIcon className="w-8 h-8" />}
+                            <button 
+                                onClick={() => alert('Voice features coming soon! Use the whiteboard for now.')} 
+                                className="w-16 h-16 rounded-full flex items-center justify-center transition-all bg-gray-600 cursor-not-allowed shadow-xl opacity-60"
+                                disabled
+                            >
+                                <MicrophoneIcon className="w-8 h-8" />
                             </button>
                         </div>
                     </div>
