@@ -4,9 +4,10 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import RoomManager from './roomManager.js';
-import { initDB } from './db.js';
+import { initDB, getDB, saveDB } from './db.js';
 
 import userRoutes from './routes/users.js';
 import lessonRoutes from './routes/lessons.js';
@@ -195,10 +196,70 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Auto-seed lessons from JSON files if the DB is empty
+ */
+async function autoSeed() {
+    const db = getDB();
+    const result = db.prepare('SELECT COUNT(*) as count FROM lessons').get();
+    if (result.count > 0) {
+        console.log(`📚 DB already has ${result.count} lessons, skipping seed`);
+        return;
+    }
+
+    const lessonsDir = path.resolve(__dirname, '../lessons');
+    if (!fs.existsSync(lessonsDir)) {
+        console.log('📚 No lessons/ directory found, skipping seed');
+        return;
+    }
+
+    function walk(dir) {
+        const results = [];
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) results.push(...walk(full));
+            else if (entry.name.endsWith('.json') && entry.name.startsWith('lesson-')) results.push(full);
+        }
+        return results;
+    }
+
+    const files = walk(lessonsDir);
+    let inserted = 0;
+
+    for (const filePath of files) {
+        try {
+            const lesson = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            if (!lesson.id || !lesson.language || !lesson.level || !lesson.topic) continue;
+
+            db.prepare(`
+                INSERT INTO lessons (id, language, level, lesson_number, topic, content, generated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET content = excluded.content, generated_at = excluded.generated_at
+            `).run(
+                lesson.id, lesson.language, lesson.level,
+                lesson.lessonNumber || 1, lesson.topic,
+                JSON.stringify(lesson), lesson.generatedAt || new Date().toISOString()
+            );
+            inserted++;
+        } catch (err) {
+            console.error(`  ❌ Error seeding ${path.basename(filePath)}:`, err.message);
+        }
+    }
+
+    if (inserted > 0) {
+        saveDB();
+        console.log(`🌱 Auto-seeded ${inserted} lessons`);
+    }
+}
+
 // Initialize database, then start server
 async function start() {
     try {
         await initDB();
+        await autoSeed();
         httpServer.listen(PORT, '0.0.0.0', () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`WebSocket endpoint: ws://0.0.0.0:${PORT}`);
