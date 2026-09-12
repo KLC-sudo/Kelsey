@@ -35,7 +35,7 @@ import { AuthGate } from './components/AuthGate';
 import type { BoardCard, CurriculumDeck } from './types/board';
 import { buildDeckFromLesson, markCardSent, markCardUnsent } from './utils/curriculumDeck';
 import { buildReviewSession, saveSessionToHistory } from './utils/reviewHistory';
-import { getAuthState, loadAccount } from './utils/account';
+import { getAuthState, loadAccount, signOut } from './utils/account';
 
 import { LiveKitRoom } from '@livekit/components-react';
 import '@livekit/components-styles';
@@ -57,7 +57,7 @@ type Audibility = 'silent' | 'poor' | 'good' | 'clipping';
 type View = 'auth' | 'setup' | 'conversation' | 'summary' | 'mode-select' | 'lesson-picker' | 'role-selection' | 'tutor-session' | 'student-session' | 'review-history';
 
 const App: React.FC = () => {
-    const [view, setView] = useState<View>('role-selection');
+    const [view, setView] = useState<View>('mode-select');
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [status, setStatus] = useState<string>('');
     const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
@@ -75,7 +75,7 @@ const App: React.FC = () => {
     const [paceHistory, setPaceHistory] = useState<PaceUpdate[]>([]);
 
     // Class mode state
-    const [appMode, setAppMode] = useState<AppMode>('human-tutor');
+    const [appMode, setAppMode] = useState<AppMode>('free');
     const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
     const [classSession, setClassSession] = useState<ClassSession | null>(null);
     const [currentPhase, setCurrentPhase] = useState<LessonPhase>('introduction');
@@ -1046,29 +1046,25 @@ const App: React.FC = () => {
     // Mode selection view
     if (view === 'mode-select') {
         return (
-            <div className="bg-gray-900 text-white h-[100dvh] flex flex-col items-center justify-center p-4">
-                <h1 className="text-4xl font-bold mb-10 animate-fade-in-down">Language Tutor AI</h1>
-                <ModeSelector
-                    currentMode={appMode}
-                    onModeChange={(mode) => {
-                        setAppMode(mode);
-                        if (mode === 'free') {
-                            setView('setup');
-                        } else if (mode === 'class') {
-                            setView('lesson-picker');
-                        } else if (mode === 'human-tutor') {
-                            setView('role-selection');
-                        }
-                    }}
-                />
-                {/* Review History shortcut for students */}
-                <button
-                    onClick={() => setView('review-history')}
-                    className="mt-6 text-sm text-gray-500 hover:text-blue-400 transition-colors flex items-center gap-2"
-                >
-                    📖 View Review History
-                </button>
-            </div>
+            <ModeSelector
+                account={account}
+                onModeSelect={(mode) => {
+                    setAppMode(mode);
+                    if (mode === 'free') {
+                        setView('setup');
+                    } else if (mode === 'class') {
+                        setView('lesson-picker');
+                    } else if (mode === 'human-tutor') {
+                        setView('role-selection');
+                    }
+                }}
+                onReviewHistory={() => setView('review-history')}
+                onSignOut={() => {
+                    signOut();
+                    setIsAuthed(false);
+                    setView('mode-select');
+                }}
+            />
         );
     }
 
