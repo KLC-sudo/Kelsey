@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SIGNALING_SERVER_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_SIGNALING_SERVER_URL || 'http://localhost:3001';
+const SIGNALING_SERVER_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_SIGNALING_SERVER_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
 
 export interface UseSignalingOptions {
     roomId: string;
