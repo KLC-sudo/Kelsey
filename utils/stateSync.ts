@@ -74,11 +74,19 @@ export class StateSyncManager {
             return;
         }
         console.log('📤 Sending state update:', event.type);
+
+        // Strip private fields before sending to student
+        const sanitized = { ...event };
+        if (sanitized.type === 'PUSH_CARD') {
+            const { teachingNote, ...safeCard } = sanitized.card as any;
+            sanitized.card = safeCard as BoardCard;
+        }
+
         this.socket.emit('state-update', {
             roomId: this.roomId,
-            stateEvent: event,
+            stateEvent: sanitized,
         });
-        // Also apply locally for tutor
+        // Also apply locally for tutor (with teachingNote intact)
         this.notifyListeners(event);
     }
 

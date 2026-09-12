@@ -306,7 +306,7 @@ const App: React.FC = () => {
             let progress = getUserProgress();
             if (!progress) {
                 progress = initializeProgress(
-                    currentLesson.language as 'german' | 'french' | 'spanish',
+                    currentLesson.language as 'german' | 'french' | 'spanish' | 'english' | 'chinese',
                     instructionLanguage || 'english'
                 );
             }
@@ -331,6 +331,12 @@ const App: React.FC = () => {
             // Move to next phase
             const nextPhase = currentLesson.phases[currentIndex + 1].phase;
             setCurrentPhase(nextPhase);
+
+            // Sync phase change to student
+            if (stateSyncRef.current) {
+                stateSyncRef.current.sendStateUpdate({ type: 'CHANGE_PHASE', phase: nextPhase });
+            }
+
             console.log(`✅ Advanced to phase: ${nextPhase}`);
 
             // Show notification
@@ -355,6 +361,11 @@ const App: React.FC = () => {
         if (currentIndex > 0) {
             const previousPhase = currentLesson.phases[currentIndex - 1].phase;
             setCurrentPhase(previousPhase);
+
+            // Sync phase change to student
+            if (stateSyncRef.current) {
+                stateSyncRef.current.sendStateUpdate({ type: 'CHANGE_PHASE', phase: previousPhase });
+            }
 
             const phaseNames: Record<string, string> = {
                 introduction: 'Introduction',
@@ -1410,8 +1421,26 @@ const App: React.FC = () => {
                         />
                     )}
 
-                    {/* Whiteboard - Main Content */}
-                    <Whiteboard topics={whiteboardTopics} tutorName={languageConfig[targetLanguage].tutor} />
+                    {/* Board - Main Content */}
+                    {appMode === 'class' && currentLesson && classSession ? (
+                        <LiveBoard
+                            cards={boardCards}
+                            onFlagCard={(id, text) => {
+                                if (stateSyncRef.current) {
+                                    stateSyncRef.current.sendStudentSignal({ type: 'STUDENT_FLAG_CARD', cardId: id, annotationText: text });
+                                }
+                            }}
+                            onUnflagCard={(id) => {
+                                if (stateSyncRef.current) {
+                                    stateSyncRef.current.sendStudentSignal({ type: 'STUDENT_UNFLAG_CARD', cardId: id });
+                                }
+                            }}
+                        />
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center text-gray-500">
+                            <p>Select a lesson to begin</p>
+                        </div>
+                    )}
 
                     <div className="h-24 flex flex-col items-center justify-center bg-gray-800/30 rounded-lg mb-4 shrink-0 border border-gray-800">
                         <p className="text-gray-400 text-sm mb-2">{status}</p>

@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js",
-    "serve": "node server/index.js"
+    "serve": "node server/index.js",
+    "seed": "node server/seed.js"
   },
   "engines": {
     "node": "22.x"

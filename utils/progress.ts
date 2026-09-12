@@ -1,11 +1,23 @@
 // Progress tracking utilities using LocalStorage
 
 import { UserProgress, LessonAssessment, SessionState } from '../types/lesson';
+import { loadAccount, getAuthState } from './account';
+import { updateStreak } from './streakTracking';
 
 const STORAGE_KEYS = {
     PROGRESS: 'languageTutor_userProgress',
     SESSION_STATE: 'languageTutor_sessionState',
 } as const;
+
+/**
+ * Parse a lesson ID like "german-A1.1-lesson-01" into { language, level, lessonNumber }
+ */
+function parseLessonId(lessonId: string): { language: string; level: string; lessonNumber: number } | null {
+    // Format: language-level-lesson-NN
+    const match = lessonId.match(/^([a-z]+)-([A-Z]\d\.\d)-lesson-(\d+)$/);
+    if (!match) return null;
+    return { language: match[1], level: match[2], lessonNumber: parseInt(match[3], 10) };
+}
 
 /**
  * Get user progress from LocalStorage
@@ -20,8 +32,6 @@ export function getUserProgress(): UserProgress | null {
         return null;
     }
 }
-
-import { loadAccount, getAuthState } from './account';
 
 /**
  * Save user progress to LocalStorage and sync to server
@@ -92,7 +102,7 @@ export async function syncProgressFromServer(): Promise<void> {
  * Initialize new user progress
  */
 export function initializeProgress(
-    language: 'german' | 'french' | 'spanish',
+    language: 'german' | 'french' | 'spanish' | 'english' | 'chinese',
     instructionLanguage: 'english' | 'spanish' | 'french'
 ): UserProgress {
     const progress: UserProgress = {
@@ -137,8 +147,8 @@ export function completeLesson(
     progress.averageScore = scores.reduce((a, b) => a + b, 0) / scores.length;
 
     // Advance to next lesson if this was the current one
-    const [, level, lessonNum] = lessonId.split('-');
-    if (level === progress.currentLevel && parseInt(lessonNum) === progress.currentLesson) {
+    const parsed = parseLessonId(lessonId);
+    if (parsed && parsed.level === progress.currentLevel && parsed.lessonNumber === progress.currentLesson) {
         progress.currentLesson++;
 
         // Check if we need to advance level
@@ -173,6 +183,9 @@ export function addStudyTime(minutes: number): void {
     progress.totalStudyTime += minutes;
     progress.lastStudied = Date.now();
     saveUserProgress(progress);
+
+    // Update streak tracking
+    updateStreak();
 }
 
 /**
@@ -182,14 +195,16 @@ export function isLessonUnlocked(lessonId: string): boolean {
     const progress = getUserProgress();
     if (!progress) return false;
 
-    const [, level, lessonNum] = lessonId.split('-');
-    const num = parseInt(lessonNum);
+    const parsed = parseLessonId(lessonId);
+    if (!parsed) return false;
+
+    const { level, lessonNumber } = parsed;
 
     // First lesson is always unlocked
-    if (level === 'A1.1' && num === 1) return true;
+    if (level === 'A1.1' && lessonNumber === 1) return true;
 
     // Check if previous lesson is completed
-    const prevLessonId = `${progress.language}-${level}-${num - 1}`;
+    const prevLessonId = `${progress.language}-${level}-lesson-${String(lessonNumber - 1).padStart(2, '0')}`;
     return progress.completedLessons.includes(prevLessonId);
 }
 
@@ -253,7 +268,6 @@ function calculateStreak(progress: UserProgress): number {
 
     // If studied today or yesterday, streak continues
     if (daysSince <= 1) {
-        // TODO: Implement full streak tracking
         return 1;
     }
 

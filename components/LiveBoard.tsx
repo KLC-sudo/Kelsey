@@ -187,7 +187,7 @@ export const LiveBoard: React.FC<LiveBoardProps> = ({
   // Track new cards for entrance animation
   useEffect(() => {
     if (cards.length > prevCardCount.current) {
-      const latestCard = cards[0]; // newest at top
+      const latestCard = cards[cards.length - 1]; // newest is last (appended)
       if (latestCard) {
         setNewCardIds(prev => new Set([...prev, latestCard.id]));
         // Remove "new" state after animation completes

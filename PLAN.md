@@ -6,145 +6,184 @@
 
 ---
 
-## Current State Summary
+## Timeline Status
 
-The app has three learning modes (Free Conversation, Structured Class, Human Tutor), a Node.js/Express backend with SQLite, and real-time features via Socket.io + LiveKit. However, **the app is currently broken in production** — the last 8 of 10 commits were Railway deploy fixes, and `server/db.js` still imports `better-sqlite3` while the latest commit replaced it with `sql.js`. Only German A1.1 lessons (5 files) exist.
+| Phase | Status | Hours Spent |
+|-------|--------|-------------|
+| Phase 0: Fix What's Broken | DONE | ~4h |
+| Phase 1: Core Functionality | PARTIAL — server runs, Socket.io fixed | ~2h remaining |
+| Phase 2: Content & Polish | NOT STARTED | — |
+| Phase 3: Production Hardening | PARTIAL — volume, CORS fixed | — |
+| Phase 4: Testing & Launch | NOT STARTED | — |
 
----
-
-## Phase 0: Fix What's Broken (Hours 0–4) — CRITICAL
-
-These are blocking issues that prevent the app from running at all.
-
-### 0.1 Fix the Database Layer
-- [ ] **`server/db.js`**: Replace `better-sqlite3` import with `sql.js` — the last commit (`c622adb`) claims to have done this but `db.js` still uses `import Database from 'better-sqlite3'` and `new Database(dbPath)`. Rewrite to use `sql.js` with async init.
-- [ ] **`package.json`**: Remove `better-sqlite3-multiple-ciphers` and `@types/better-sqlite3` from dependencies. Keep only `sql.js`.
-- [ ] **All server routes**: Update `db.prepare().run()` / `.get()` / `.all()` calls to work with `sql.js`'s API (which returns arrays, not objects with `.run()`). Create a thin wrapper to maintain compatibility.
-- [ ] Verify SQLite write path works on Railway (no native compilation needed with sql.js).
-
-### 0.2 Fix Deployment Config
-- [ ] **`Procfile`**: Change `node server.js` → `node server/index.js` (the file `server.js` does not exist at root).
-- [ ] **`netlify.toml`**: Change `NODE_VERSION = "20"` → `NODE_VERSION = "22"` to match `package.json` engines.
-- [ ] **`server/index.js` line 20**: CORS origin defaults to `http://localhost:5173` but Vite dev server runs on port `3000`. Fix to `http://localhost:3000` or use env var.
-- [ ] **`.env` file**: Create from `.env.example` with actual values. The app needs at minimum `VITE_GEMINI_API_KEY` to function.
-
-### 0.3 Fix Auth Flow
-- [ ] Bearer token auth uses the user ID directly as the token — this is fragile. At minimum, validate the token format and add a fallback for missing `Authorization` header on non-auth routes.
-- [ ] LiveKit token endpoint falls back to `devkey`/`secret` if env vars missing — add proper error if LiveKit is not configured.
+**Time remaining: ~18 hours**
 
 ---
 
-## Phase 1: Core Functionality (Hours 4–12) — MVP FEATURES
+## Phase 0: Fix What's Broken (Hours 0–4) — DONE
 
-### 1.1 Free Conversation Mode (AI Voice Chat)
-- [ ] **Verify Gemini Live API integration** works end-to-end (API key, model name `gemini-live-2.5-flash-native-audio`, audio streaming).
-- [ ] **Fix audio pipeline**: AudioWorklet PCM capture → Gemini Live API → audio playback. Test on Chrome/Firefox/Safari.
-- [ ] **Add error handling**: Show user-friendly errors when API key is invalid, quota exceeded, or connection drops.
-- [ ] **Fix transcript display**: Ensure `liveTranscript` updates correctly during conversation.
-
-### 1.2 Structured Class Mode
-- [ ] **Verify lesson loading**: Lessons must be loadable from the DB. Currently only 5 German A1.1 lessons exist as JSON files — they need to be seeded into the database on server start.
-- [ ] **Create seed script**: `server/seed.js` that reads `lessons/german/A1.1/*.json` and inserts them into the `lessons` table. Run on first server start or via `npm run seed`.
-- [ ] **Fix lesson picker**: `LessonPicker` component fetches from `/api/lessons` — verify this returns data after seeding.
-- [ ] **Fix class session flow**: Verify the 6-phase flow (introduction → grammar → vocabulary → practice → assessment → review) works with the AI tutor.
-- [ ] **Fix `initializeProgress`**: Currently only accepts `'german' | 'french' | 'spanish'` — add `'chinese' | 'english'` to match `languageConfig` in App.tsx.
-
-### 1.3 Human Tutor Mode
-- [ ] **Verify Socket.io room creation/joining**: Tutor creates room → gets code → student enters code → joins. Test full flow.
-- [ ] **Verify LiveKit audio**: Both parties can hear each other. Check token generation, room creation, audio publish/subscribe.
-- [ ] **Verify board sync**: Tutor pushes cards → student sees them in real-time. Student flags → tutor sees flag.
-- [ ] **Fix reconnection**: Test disconnect/reconnect for both tutor and student. Board state should rehydrate.
+All items completed:
+- [x] Database migrated from better-sqlite3 to sql.js
+- [x] All routes updated for sql.js compatibility wrapper
+- [x] Procfile fixed: `server.js` → `server/index.js`
+- [x] netlify.toml fixed: Node 20 → 22
+- [x] CORS origin fixed for production
+- [x] .env created with all required vars
+- [x] server/package.json removed (consolidated into root)
+- [x] Socket.io CORS fixed (allow all origins)
+- [x] useWebRTC fallback URL fixed (window.location.origin)
+- [x] Railway volume mount path: `/app` → `/data`
 
 ---
 
-## Phase 2: Content & Polish (Hours 12–18)
+## Phase 1: Account Creation (Hours 4–8) — NEXT
 
-### 2.1 Lesson Content
-- [ ] **Generate at least 3 lessons per language** for A1.1 level (German, French, Spanish, Chinese, English = 15 lessons minimum).
-- [ ] Use `utils/lessonGenerator.ts` or the standalone scripts (`generate-lessons.mjs`) to batch-generate.
-- [ ] Seed all generated lessons into the database.
-- [ ] Verify each lesson has: vocabulary items, grammar concepts, exercises, and all 6 phases defined.
+### Problem
+`createAccount()` in `utils/account.ts:27` calls `fetch('/api/users')` which works on the backend. BUT `continueAsGuest()` also calls `createAccount()` which hits the same API. For a new user, if the API fails (e.g., rate limit, network), they're stuck. The flow is:
+1. AuthGate shows → user enters name → calls POST /api/users → works if server is up
+2. Guest mode → calls POST /api/users with "Guest" → same dependency
 
-### 2.2 UI/UX Fixes
-- [ ] **`App.tsx` decomposition**: The 1477-line monolith needs splitting. Extract into:
-  - `pages/FreeConversation.tsx` — free mode views
-  - `pages/StructuredClass.tsx` — class mode views
-  - `pages/HumanTutor.tsx` — tutor/student session views
-  - `hooks/useGeminiSession.ts` — all Gemini Live API logic
-  - `hooks/useClassSession.ts` — class mode state + timer
-  - Keep `App.tsx` as a thin router shell (~200 lines max).
-- [ ] **Fix `utils/streakTracking.tsx`**: Rename to `.ts` (no JSX in this file).
-- [ ] **Add loading states**: Show spinners/skeletons while lessons load, summaries generate, tokens fetch.
-- [ ] **Add error boundaries**: Wrap each mode in a React error boundary so one mode crashing doesn't kill the whole app.
-- [ ] **Mobile responsiveness**: Verify all screens work on mobile (375px width minimum).
+**The backend API exists and should work now that the server is running.** The real risk is network failures. We need:
+- [ ] Test account creation end-to-end on deployed URL
+- [ ] Add retry/fallback to localStorage if API fails
+- [ ] Fix `LoginInput` type (defined but unused — no login flow)
+- [ ] Add proper error messages in AuthGate for different failure modes
+
+### Tasks
+- [ ] **Test account creation on live prod** — create account, verify it persists in DB
+- [ ] **Test guest mode** — continue as guest, verify it works
+- [ ] **Add localStorage fallback** — if API call fails, create account locally anyway
+- [ ] **Fix progress sync** — `saveUserProgress()` and `saveSessionToHistory()` call API but silently fail. Add offline queue or localStorage-only mode.
+
+---
+
+## Phase 1B: Language Practice Features (Hours 8–14)
+
+### Critical Bugs to Fix
+
+#### 1. Lesson ID Parsing Bug (`utils/progress.ts:140, 185`)
+`lessonId.split('-')` for `german-A1.1-lesson-01` yields `['german', 'A1.1', 'lesson', '01']`. The destructuring `[, level, lessonNum]` gets `lessonNum = 'lesson'`, so `parseInt('lesson')` = `NaN`. **Progress never advances.**
+
+- [ ] Fix `completeLesson()` — parse lesson ID correctly
+- [ ] Fix `isLessonUnlocked()` — same parsing bug
+
+#### 2. Streak System Not Wired In
+`utils/streakTracking.tsx` has a complete streak system (hook, display, milestones) but is never imported anywhere. Meanwhile `utils/progress.ts:247` has a broken `calculateStreak()` with a `TODO` comment.
+
+- [ ] Import `useStudyStreak` in App.tsx
+- [ ] Call `updateStreak()` in `completeLesson()` or `addStudyTime()`
+- [ ] Replace broken `calculateStreak()` in progress.ts
+
+#### 3. Language Support Incomplete
+`initializeProgress()` only accepts `'german' | 'french' | 'spanish'` — missing `'chinese' | 'english'`.
+
+- [ ] Add all 5 languages to `initializeProgress()` type union
+
+#### 4. Lesson Seeding
+Only 5 German A1.1 lessons exist. No lessons for French, Spanish, Chinese, English.
+
+- [ ] Create `server/seed.js` — reads lesson JSON files, inserts into DB
+- [ ] Generate 3 lessons per language (15 total) for A1.1
+- [ ] Add `npm run seed` script
+
+---
+
+## Phase 1C: Live Whiteboard Fixes (Hours 14–18)
+
+### Critical Issues
+
+#### 1. `teachingNote` Leaks to Students
+`types/board.ts:51` — `teachingNote` is documented as "never transmitted" but `stateSync.ts:77` sends the full card object. Students can see tutor-only notes.
+
+- [ ] Strip `teachingNote` in `StateSyncManager.sendStateUpdate()` before socket emit
+
+#### 2. Missing `<Whiteboard>` Component Reference
+`App.tsx:1414` — references `<Whiteboard>` which doesn't exist. This is in the free-mode/class-mode conversation view.
+
+- [ ] Either create `Whiteboard.tsx` or replace with `LiveBoard`
+
+#### 3. Card Animation Targets Wrong Card
+`LiveBoard.tsx:189` — assumes `cards[0]` is newest, but cards are appended (oldest first).
+
+- [ ] Fix: use `cards[cards.length - 1]` for "new" animation trigger
+
+#### 4. Phase Navigation Doesn't Sync to Student
+`App.tsx:298-368` — `handleNextPhase()` changes phase locally but doesn't emit `CHANGE_PHASE` via stateSync.
+
+- [ ] Add `stateSyncRef.current?.sendStateUpdate({ type: 'CHANGE_PHASE', phase })` in `handleNextPhase()`/`handlePreviousPhase()`
+
+---
+
+## Phase 2: Content & Polish (Hours 18–22)
+
+### 2.1 Generate Lesson Content
+- [ ] Generate 3 lessons per language for A1.1 (15 total)
+- [ ] Seed into database
+- [ ] Verify LessonPicker loads them
+
+### 2.2 UI Polish
+- [ ] Add loading states for lesson loading, summary generation
+- [ ] Add error boundaries around each mode
+- [ ] Fix `utils/streakTracking.tsx` → rename to `.ts`
+- [ ] Mobile responsiveness check (375px min)
 
 ### 2.3 Session Summary
-- [ ] Verify `SessionSummaryComponent` displays correctly after ending a free conversation.
-- [ ] Verify session data is saved to review history.
-- [ ] Verify PDF export works via `jsPDF`.
+- [ ] Verify summary works after free conversation
+- [ ] Add summary for human-tutor mode (from board cards)
+- [ ] Verify PDF export
 
 ---
 
-## Phase 3: Production Hardening (Hours 18–22)
+## Phase 3: Production Hardening (Hours 22–24)
 
-### 3.1 Backend Security
-- [ ] Add input validation to all POST/PUT routes (validate required fields, types, lengths).
-- [ ] Add rate limiting to lessons POST endpoint (currently only account creation is rate-limited).
-- [ ] Sanitize lesson content before storing (strip any HTML/script tags).
-- [ ] Add request logging (morgan or similar).
+### 3.1 Security
+- [ ] Input validation on POST/PUT routes
+- [ ] Rate limiting on lessons endpoint
 
 ### 3.2 Error Handling
-- [ ] **Server**: Add global error handler middleware to Express.
-- [ ] **Client**: Add global error boundary in React. Log errors to console for now (no Sentry needed for MVP).
-- [ ] **Socket.io**: Add timeout handling for room operations. Handle malformed messages gracefully.
+- [ ] Global Express error handler
+- [ ] React error boundaries
+- [ ] Socket.io timeout handling
 
-### 3.3 Database Persistence
-- [ ] **Railway**: Configure a persistent volume mount for `server/kelsey.db` — without this, all user data is lost on every deploy/restart.
-- [ ] Add DB backup script (copy `kelsey.db` to a safe location periodically).
-- [ ] Add DB WAL checkpoint on graceful shutdown.
+### 3.3 Persistence
+- [ ] Verify Railway volume works (DB persists across restarts)
+- [ ] Add DB backup script
 
-### 3.4 Environment Variables
-- [ ] Document all required env vars in `.env.example`:
-  - `VITE_GEMINI_API_KEY` (required for AI conversation)
-  - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (required for human tutor mode)
-  - `VITE_SOCKET_URL` (required for production frontend to find backend)
-  - `DB_PATH` (optional, defaults to `server/kelsey.db`)
-  - `CORS_ORIGIN` (optional, defaults to `http://localhost:3000`)
-- [ ] Add startup validation that required env vars are set (fail fast with clear error message).
+### 3.4 Environment
+- [ ] Document all env vars in README
+- [ ] Add startup validation for required vars
 
 ---
 
 ## Phase 4: Testing & Launch (Hours 22–24)
 
-### 4.1 Manual Testing Checklist
-- [ ] **Auth**: Create account → appears in DB → can log back in.
-- [ ] **Free mode**: Select language → start conversation → AI responds with voice → transcript shows → end session → summary appears.
-- [ ] **Class mode**: Select lesson → 6 phases play through → progress saved → lesson marked complete.
-- [ ] **Human tutor**: Tutor creates room → shares code → student joins → both hear audio → cards push to board → student flags card → session ends → review saved.
-- [ ] **Mobile**: All flows work on mobile Chrome.
-- [ ] **Reconnection**: Kill network for 5 seconds → restore → reconnects automatically.
-
-### 4.2 Deploy
-- [ ] Push to `main` → Railway auto-deploys.
-- [ ] Verify `/health` endpoint returns `{"status": "ok"}`.
-- [ ] Verify frontend loads at the Railway public URL.
-- [ ] Test full flow on the deployed URL.
+### Manual Testing Checklist
+- [ ] Account creation → persists → can log back in
+- [ ] Guest mode → works → limited features
+- [ ] Free mode → AI voice → transcript → summary
+- [ ] Class mode → lessons load → 6 phases → progress saved
+- [ ] Human tutor → room create → join → audio → board → flags
+- [ ] Progress tracking → lessons marked complete → level advances
+- [ ] Streak tracking → updates on study → milestones show
+- [ ] Mobile → all flows work at 375px
+- [ ] Reconnection → disconnect → reconnect → state restored
 
 ---
 
-## Known Issues (Accept for MVP, Fix Later)
+## Priority Order (What to Front First)
 
-| Issue | Impact | Post-MVP Fix |
-|-------|--------|--------------|
-| No real authentication (user ID = token) | Low risk for MVP (single-user dev) | Add JWT or session-based auth |
-| No tests | Technical debt | Add Vitest unit tests + Playwright E2E |
-| `App.tsx` monolith | Hard to maintain | Decompose per Phase 2 |
-| Only German A1.1 lessons | Limited content | Generate more lessons post-launch |
-| No admin dashboard | Can't manage users/lessons | Build later |
-| No analytics | Can't track usage | Add PostHog or similar |
-| CORS hardcoded | Dev-only issue | Use env var in production |
-| No HTTPS enforcement | Security gap | Railway provides this at reverse proxy |
-| SQLite single-writer | Fine for MVP scale | Migrate to Postgres if needed |
+| Priority | Task | Why First | Est. Hours |
+|----------|------|-----------|------------|
+| **1** | Test account creation on live prod | Users can't use anything without accounts | 0.5 |
+| **2** | Fix lesson ID parsing in progress.ts | Without this, no progress tracking works | 1 |
+| **3** | Seed lessons into database | Structured class mode needs content | 2 |
+| **4** | Strip teachingNote from whiteboard sync | Security/data leak | 0.5 |
+| **5** | Wire up streak tracking | Users expect streaks to work | 1 |
+| **6** | Fix phase sync to student | Human tutor board is incomplete | 1 |
+| **7** | Generate lesson content (15 lessons) | All 5 languages need A1.1 content | 3 |
+| **8** | Fix card animation targeting | Visual polish | 0.5 |
+| **9** | Add loading states & error boundaries | UX polish | 2 |
+| **10** | Mobile responsiveness check | Required for MVP | 2 |
 
 ---
 
@@ -152,32 +191,13 @@ These are blocking issues that prevent the app from running at all.
 
 | File | Action | Priority |
 |------|--------|----------|
-| `server/db.js` | **Rewrite** — switch from better-sqlite3 to sql.js | P0 |
-| `server/routes/*.js` | **Update** — adapt to sql.js API | P0 |
-| `Procfile` | **Fix** — `server.js` → `server/index.js` | P0 |
-| `netlify.toml` | **Fix** — Node 20 → 22 | P0 |
-| `package.json` | **Update** — remove better-sqlite3 deps | P0 |
+| `utils/progress.ts` | Fix lesson ID parsing (lines 140, 185) | P0 |
+| `utils/progress.ts` | Fix `initializeProgress` type union | P0 |
+| `utils/streakTracking.tsx` | Wire into App.tsx | P1 |
+| `utils/stateSync.ts` | Strip `teachingNote` before emit | P0 |
 | `server/seed.js` | **Create** — lesson seeding script | P1 |
-| `App.tsx` | **Decompose** — split into pages + hooks | P2 |
-| `utils/streakTracking.tsx` | **Rename** — `.tsx` → `.ts` | P2 |
-| `lessons/` | **Generate** — 15 lesson JSON files | P1 |
-| `.env.example` | **Update** — add VITE_GEMINI_API_KEY | P1 |
-
----
-
-## Hour-by-Hour Breakdown
-
-| Hours | Focus | Deliverable |
-|-------|-------|-------------|
-| 0–2 | Fix `db.js` + sql.js migration | Server starts without errors |
-| 2–4 | Fix Procfile, netlify.toml, CORS, .env | Deploy succeeds |
-| 4–6 | Verify Free Conversation mode | AI voice chat works |
-| 6–8 | Seed lessons, verify Class mode | Lessons load, class flow works |
-| 8–10 | Verify Human Tutor mode | Room create/join/audio/board works |
-| 10–12 | Fix reconnection, error handling | Graceful disconnect/reconnect |
-| 12–14 | Generate lesson content (15 lessons) | All 5 languages have A1.1 content |
-| 14–16 | Decompose App.tsx | Clean component structure |
-| 16–18 | UI polish, loading states, mobile | Polished UX |
-| 18–20 | Security hardening, validation | Production-safe backend |
-| 20–22 | DB persistence, env vars, error handling | Robust infrastructure |
-| 22–24 | Testing checklist + deploy | Working MVP live |
+| `lessons/` | Generate 15 lesson JSON files | P1 |
+| `App.tsx:1414` | Fix or remove `<Whiteboard>` reference | P0 |
+| `components/LiveBoard.tsx` | Fix card animation index | P1 |
+| `App.tsx:298-368` | Add CHANGE_PHASE sync | P1 |
+| `utils/account.ts` | Add localStorage fallback for API failures | P1 |

@@ -24,24 +24,41 @@ function generateId(): string {
 // ─────────────────────────────────────────────
 
 export async function createAccount(input: RegisterInput): Promise<UserAccount> {
-  const response = await fetch('/api/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ displayName: input.displayName, role: input.role, email: input.email })
-  });
-  if (!response.ok) throw new Error('Failed to create account');
-  const data = await response.json();
-  const account: UserAccount = {
-    id: data.id,
-    role: data.role,
-    displayName: data.displayName,
-    email: data.email,
-    createdAt: data.createdAt,
-    lastLoginAt: data.lastLoginAt,
-  };
-  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
-  setAuthState({ isAuthenticated: true, account, isGuest: false });
-  return account;
+  try {
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: input.displayName, role: input.role, email: input.email })
+    });
+    if (!response.ok) throw new Error('Failed to create account');
+    const data = await response.json();
+    const account: UserAccount = {
+      id: data.id,
+      role: data.role,
+      displayName: data.displayName,
+      email: data.email,
+      createdAt: data.createdAt,
+      lastLoginAt: data.lastLoginAt,
+    };
+    localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+    setAuthState({ isAuthenticated: true, account, isGuest: false });
+    return account;
+  } catch (err) {
+    // Fallback: create account locally if server is unreachable
+    console.warn('Server unavailable, creating account locally:', err);
+    const now = Date.now();
+    const account: UserAccount = {
+      id: generateId(),
+      role: input.role,
+      displayName: input.displayName,
+      email: input.email,
+      createdAt: now,
+      lastLoginAt: now,
+    };
+    localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+    setAuthState({ isAuthenticated: true, account, isGuest: false });
+    return account;
+  }
 }
 
 // ─────────────────────────────────────────────
