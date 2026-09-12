@@ -50,10 +50,10 @@ const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../dist');
 app.use(express.static(distPath));
 
-// Fallback for SPA routing
+// Fallback for SPA routing — exclude Socket.io and API paths
 app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) {
-        return res.status(404).json({ error: 'API route not found' });
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) {
+        return res.status(404).json({ error: 'Not found' });
     }
     res.sendFile(path.join(distPath, 'index.html'));
 });
