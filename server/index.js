@@ -196,9 +196,6 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 /**
  * Auto-seed lessons from JSON files if the DB is empty
  */
