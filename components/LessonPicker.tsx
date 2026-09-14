@@ -1,11 +1,11 @@
 // Lesson Picker Component - Grid of available lessons
 
 import React from 'react';
-import type { Lesson, CEFRLevel } from '../types/lesson';
+import type { Lesson, CEFRLevel, LanguageCode } from '../types/lesson';
 import { getUserProgress } from '../utils/progress';
 
 interface LessonPickerProps {
-    language: 'german' | 'french' | 'spanish';
+    language: LanguageCode;
     level: CEFRLevel;
     onLessonSelect: (lesson: Lesson) => void;
     onBack: () => void;

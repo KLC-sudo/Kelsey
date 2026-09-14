@@ -32,6 +32,7 @@ import { LiveBoard } from './components/LiveBoard';
 import { TutorDeckPanel } from './components/TutorDeckPanel';
 import { ReviewHistory } from './components/ReviewHistory';
 import { AuthGate } from './components/AuthGate';
+import { LanguageLevelPicker } from './components/LanguageLevelPicker';
 import type { BoardCard, CurriculumDeck } from './types/board';
 import { buildDeckFromLesson, markCardSent, markCardUnsent } from './utils/curriculumDeck';
 import { buildReviewSession, saveSessionToHistory } from './utils/reviewHistory';
@@ -54,7 +55,7 @@ type TargetLanguage = keyof typeof languageConfig;
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 type InstructionLanguage = 'english' | 'spanish' | 'french';
 type Audibility = 'silent' | 'poor' | 'good' | 'clipping';
-type View = 'auth' | 'setup' | 'conversation' | 'summary' | 'mode-select' | 'lesson-picker' | 'role-selection' | 'tutor-session' | 'student-session' | 'review-history';
+type View = 'auth' | 'setup' | 'conversation' | 'summary' | 'mode-select' | 'language-level-picker' | 'lesson-picker' | 'role-selection' | 'tutor-session' | 'student-session' | 'review-history';
 
 const App: React.FC = () => {
     const [view, setView] = useState<View>('mode-select');
@@ -82,6 +83,7 @@ const App: React.FC = () => {
     const [sessionElapsedTime, setSessionElapsedTime] = useState<number>(0);
     const [showCompletion, setShowCompletion] = useState(false);
     const [completionScore, setCompletionScore] = useState(85);
+    const [classLevel, setClassLevel] = useState<string>('A1.1');
 
     // Reconnection state
     const [isReconnecting, setIsReconnecting] = useState(false);
@@ -1053,7 +1055,7 @@ const App: React.FC = () => {
                     if (mode === 'free') {
                         setView('setup');
                     } else if (mode === 'class') {
-                        setView('lesson-picker');
+                        setView('language-level-picker');
                     } else if (mode === 'human-tutor') {
                         setView('role-selection');
                     }
@@ -1086,6 +1088,20 @@ const App: React.FC = () => {
         );
     }
 
+    // Language & Level picker for structured class mode
+    if (view === 'language-level-picker') {
+        return (
+            <LanguageLevelPicker
+                onSelect={(language, level) => {
+                    setTargetLanguage(language as TargetLanguage);
+                    setClassLevel(level);
+                    setView('lesson-picker');
+                }}
+                onBack={() => setView('mode-select')}
+            />
+        );
+    }
+
     // Lesson picker view — also used for tutor human-mode to pick a lesson
     if (view === 'lesson-picker') {
         return (
@@ -1093,7 +1109,7 @@ const App: React.FC = () => {
                 <div className="max-w-6xl w-full">
                     <LessonPicker
                         language={targetLanguage || 'german'}
-                        level="A1.1"
+                        level={classLevel as any}
                         onLessonSelect={(lesson) => {
                             setCurrentLesson(lesson);
                             setTargetLanguage(lesson.language as TargetLanguage);
