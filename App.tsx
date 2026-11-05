@@ -11,11 +11,21 @@ import { getAuthState, loadAccount, signOut } from './utils/account';
 import { buildDeckFromLesson } from './utils/curriculumDeck';
 import type { TargetLanguage } from './context/AppContext';
 import type { AppMode } from './components/ModeSelector';
+import type { UserRole } from './types/account';
 import { FreeModeApp } from './pages/FreeModeApp';
 import { TutorSessionPage } from './pages/TutorSessionPage';
 import { StudentSessionPage } from './pages/StudentSessionPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AuthPage } from './pages/AuthPage';
+
+/** Route guard: only allow specified roles */
+function RequireRole({ roles, children }: { roles: UserRole[]; children: React.ReactNode }) {
+  const account = loadAccount();
+  if (!account || !roles.includes(account.role)) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
 
 function AuthWrapper() {
   const { dispatch } = useAppContext();
@@ -35,7 +45,17 @@ function ModeSelectPage() {
         dispatch({ type: 'SET_APP_MODE', mode });
         if (mode === 'free') navigate('/setup');
         else if (mode === 'class') navigate('/language-level');
-        else if (mode === 'human-tutor') navigate('/role-selection');
+        else if (mode === 'human-tutor') {
+          // Teachers/schools go to role selection (host or join)
+          // Students go directly to join-by-code
+          if (account?.role === 'teacher' || account?.role === 'school') {
+            navigate('/role-selection');
+          } else {
+            dispatch({ type: 'SET_IS_TUTOR_MODE', v: false });
+            dispatch({ type: 'SET_SHOW_SESSION_CODE_INPUT', v: true });
+            navigate('/student-session');
+          }
+        }
       }}
       onReviewHistory={() => navigate('/review-history')}
       onSignOut={() => {
@@ -130,10 +150,18 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<ModeSelectPage />} />
       <Route path="/setup" element={<FreeModeApp />} />
-      <Route path="/role-selection" element={<RoleSelectionPage />} />
+      <Route path="/role-selection" element={
+        <RequireRole roles={['teacher', 'school']}>
+          <RoleSelectionPage />
+        </RequireRole>
+      } />
       <Route path="/language-level" element={<LanguageLevelPickerPage />} />
       <Route path="/lesson-picker" element={<LessonPickerPage />} />
-      <Route path="/tutor-session" element={<TutorSessionPage />} />
+      <Route path="/tutor-session" element={
+        <RequireRole roles={['teacher', 'school']}>
+          <TutorSessionPage />
+        </RequireRole>
+      } />
       <Route path="/student-session" element={<StudentSessionPage />} />
       <Route path="/conversation" element={<FreeModeApp />} />
       <Route path="/review-history" element={<ReviewHistoryPage />} />

@@ -2,6 +2,8 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { GoogleGenAI, Type } from '@google/genai';
 import { getDB, saveDB } from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/role.js';
 
 const router = express.Router();
 
@@ -48,8 +50,8 @@ function buildPhases(exercises) {
     ];
 }
 
-// Generate a lesson via Gemini AI
-router.post('/generate', generateLimiter, async (req, res) => {
+// Generate a lesson via Gemini AI — teachers and schools only
+router.post('/generate', requireAuth, requireRole('teacher', 'school'), generateLimiter, async (req, res) => {
     const error = validateRequest(req.body);
     if (error) return res.status(400).json({ error });
 

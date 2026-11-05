@@ -6,6 +6,12 @@ import { StreakDisplay, getStreakData, type StreakData } from '../utils/streakTr
 
 export type AppMode = 'free' | 'class' | 'human-tutor';
 
+const ROLE_BADGES: Record<string, { icon: string; label: string; color: string }> = {
+    student: { icon: '🎓', label: 'Student', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+    teacher: { icon: '👨‍🏫', label: 'Teacher', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+    school: { icon: '🏫', label: 'School', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+};
+
 interface ModeSelectorProps {
     account: UserAccount | null;
     onModeSelect: (mode: AppMode) => void;
@@ -17,6 +23,9 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelec
     const navigate = useNavigate();
     const [srsStats, setSrsStats] = useState({ total: 0, dueToday: 0, learned: 0 });
     const [streak, setStreak] = useState<StreakData | null>(null);
+    const role = account?.role || 'student';
+    const isTeacher = role === 'teacher' || role === 'school';
+    const badge = ROLE_BADGES[role];
 
     useEffect(() => {
         fetchSRSStats().then(setSrsStats).catch(() => {});
@@ -30,6 +39,11 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelec
                 <div className="flex items-center gap-3">
                     <span className="text-2xl">🌍</span>
                     <span className="text-white font-bold text-lg">Kelsey</span>
+                    {badge && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.color}`}>
+                            {badge.icon} {badge.label}
+                        </span>
+                    )}
                     {streak && streak.currentStreak > 0 && (
                         <StreakDisplay streak={streak} compact />
                     )}
@@ -69,8 +83,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelec
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
-                    {/* Free Conversation */}
+                <div className={`grid grid-cols-1 gap-6 w-full max-w-4xl ${isTeacher ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+                    {/* Free Conversation — all roles */}
                     <button
                         onClick={() => onModeSelect('free')}
                         className="group border-2 border-gray-700 hover:border-blue-500 bg-gray-900/50 hover:bg-blue-500/10 rounded-2xl p-6 text-left transition-all duration-300"
@@ -89,7 +103,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelec
                         </ul>
                     </button>
 
-                    {/* Structured Class */}
+                    {/* Structured Class — all roles */}
                     <button
                         onClick={() => onModeSelect('class')}
                         className="group border-2 border-gray-700 hover:border-green-500 bg-gray-900/50 hover:bg-green-500/10 rounded-2xl p-6 text-left transition-all duration-300"
@@ -108,25 +122,37 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelec
                         </ul>
                     </button>
 
-                    {/* Human Tutor */}
+                    {/* Human Tutor — teachers/schools only */}
+                    {isTeacher && (
+                        <button
+                            onClick={() => onModeSelect('human-tutor')}
+                            className="group border-2 border-gray-700 hover:border-purple-500 bg-gray-900/50 hover:bg-purple-500/10 rounded-2xl p-6 text-left transition-all duration-300"
+                        >
+                            <span className="text-4xl block mb-3">👨‍🏫</span>
+                            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">
+                                Human Tutor
+                            </h3>
+                            <p className="text-gray-400 text-sm mb-4">
+                                Host live sessions with a shared whiteboard, real-time cards, and confidence polling.
+                            </p>
+                            <ul className="space-y-1.5 text-xs text-gray-500">
+                                <li>✓ Shared interactive whiteboard</li>
+                                <li>✓ Push content to students</li>
+                                <li>✓ Live confidence tally</li>
+                            </ul>
+                        </button>
+                    )}
+                </div>
+
+                {/* Student: join a session via room code */}
+                {!isTeacher && (
                     <button
                         onClick={() => onModeSelect('human-tutor')}
-                        className="group border-2 border-gray-700 hover:border-purple-500 bg-gray-900/50 hover:bg-purple-500/10 rounded-2xl p-6 text-left transition-all duration-300"
+                        className="mt-6 text-sm text-gray-500 hover:text-purple-400 transition-colors flex items-center gap-2 mx-auto border border-gray-800 hover:border-purple-500/50 rounded-full px-5 py-2.5"
                     >
-                        <span className="text-4xl block mb-3">👨‍🏫</span>
-                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">
-                            Human Tutor
-                        </h3>
-                        <p className="text-gray-400 text-sm mb-4">
-                            Connect with a real tutor for live, personalized instruction via whiteboard.
-                        </p>
-                        <ul className="space-y-1.5 text-xs text-gray-500">
-                            <li>✓ Shared interactive whiteboard</li>
-                            <li>✓ Tutor-guided lessons</li>
-                            <li>✓ Real-time feedback</li>
-                        </ul>
+                        🔑 Have a room code? Join a live session
                     </button>
-                </div>
+                )}
 
                 {/* Review History link */}
                 <button

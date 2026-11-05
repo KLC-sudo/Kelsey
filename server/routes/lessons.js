@@ -1,5 +1,7 @@
 import express from 'express';
 import { getDB } from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/role.js';
 
 const router = express.Router();
 
@@ -53,8 +55,8 @@ router.get('/:id', (req, res) => {
     }
 });
 
-// Save a newly generated lesson
-router.post('/', (req, res) => {
+// Save a newly generated lesson — teachers and schools only
+router.post('/', requireAuth, requireRole('teacher', 'school'), (req, res) => {
     const lessonData = req.body;
     
     if (!lessonData || !lessonData.id) {
