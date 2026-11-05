@@ -4,26 +4,49 @@ import crypto from 'crypto';
 import { getDB } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { signToken } from '../jwt.js';
+import { hashPassword, verifyPassword } from '../password.js';
 
 const router = express.Router();
 
-// Rate limiting for account creation: 5 requests per minute per IP
+// Rate limiting
 const createAccountLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: 5,
-    message: { error: 'Too many accounts created from this IP, please try again after a minute' }
+    windowMs: 1 * 60 * 1000,
+    max: 10,
+    message: { error: 'Too many requests. Please try again in a minute.' }
+});
+
+const loginLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many login attempts. Please try again in a minute.' }
 });
 
 function generateId() {
     return 'usr_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 }
 
-// Create account
-router.post('/', createAccountLimiter, (req, res) => {
-    const { displayName, role, email } = req.body;
-    
-    if (!displayName || !role) {
-        return res.status(400).json({ error: 'displayName and role are required' });
+// ─────────────────────────────────────────────
+// REGISTER: email + password + display name + role
+// ─────────────────────────────────────────────
+router.post('/register', createAccountLimiter, (req, res) => {
+    const { email, password, displayName, role } = req.body;
+
+    if (!email || !password || !displayName || !role) {
+        return res.status(400).json({ error: 'email, password, displayName, and role are required' });
+    }
+
+    const validRoles = ['student', 'teacher', 'school'];
+    if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: 'role must be student, teacher, or school' });
+    }
+
+    if (password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const emailNorm = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+        return res.status(400).json({ error: 'Invalid email address' });
     }
 
     const id = generateId();
@@ -31,45 +54,62 @@ router.post('/', createAccountLimiter, (req, res) => {
     const db = getDB();
 
     try {
-        const stmt = db.prepare(`
-            INSERT INTO users (id, display_name, email, role, created_at, last_login_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `);
-        stmt.run(id, displayName, email || null, role, now, now);
-        
+        // Check if email already exists
+        const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(emailNorm);
+        if (existing) {
+            return res.status(409).json({ error: 'An account with this email already exists' });
+        }
+
+        const pwHash = hashPassword(password);
+        db.prepare(`
+            INSERT INTO users (id, display_name, email, password_hash, role, created_at, last_login_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(id, displayName.trim(), emailNorm, pwHash, role, now, now);
+
         const token = signToken(id, role);
 
-        res.status(201).json({ 
-            id, 
-            displayName, 
-            email, 
-            role, 
-            createdAt: now, 
+        res.status(201).json({
+            id,
+            displayName: displayName.trim(),
+            email: emailNorm,
+            role,
+            createdAt: now,
             lastLoginAt: now,
             token
         });
     } catch (err) {
-        console.error('Error creating user:', err);
-        res.status(500).json({ error: 'Failed to create user' });
+        console.error('Error registering user:', err);
+        res.status(500).json({ error: 'Failed to create account' });
     }
 });
 
-// Login (returns JWT for existing user)
-router.post('/login', (req, res) => {
-    const { displayName, role } = req.body;
+// ─────────────────────────────────────────────
+// LOGIN: email + password → JWT
+// ─────────────────────────────────────────────
+router.post('/login', loginLimiter, (req, res) => {
+    const { email, password } = req.body;
 
-    if (!displayName || !role) {
-        return res.status(400).json({ error: 'displayName and role are required' });
+    if (!email || !password) {
+        return res.status(400).json({ error: 'email and password are required' });
     }
 
+    const emailNorm = email.trim().toLowerCase();
     const db = getDB();
 
     try {
-        const stmt = db.prepare('SELECT * FROM users WHERE display_name = ? AND role = ?');
-        const user = stmt.get(displayName, role);
+        const user = db.prepare('SELECT * FROM users WHERE email = ?').get(emailNorm);
 
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        // Check password if hash exists (legacy accounts without password fail login)
+        if (user.password_hash) {
+            if (!verifyPassword(password, user.password_hash)) {
+                return res.status(401).json({ error: 'Invalid email or password' });
+            }
+        } else {
+            return res.status(401).json({ error: 'This account has no password. Please register again.' });
         }
 
         const now = Date.now();
@@ -89,6 +129,44 @@ router.post('/login', (req, res) => {
     } catch (err) {
         console.error('Error logging in:', err);
         res.status(500).json({ error: 'Failed to login' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// Legacy: create account without password (guest/compat)
+// ─────────────────────────────────────────────
+router.post('/', createAccountLimiter, (req, res) => {
+    const { displayName, role, email } = req.body;
+    
+    if (!displayName || !role) {
+        return res.status(400).json({ error: 'displayName and role are required' });
+    }
+
+    const id = generateId();
+    const now = Date.now();
+    const db = getDB();
+
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO users (id, display_name, email, password_hash, role, created_at, last_login_at)
+            VALUES (?, ?, ?, NULL, ?, ?, ?)
+        `);
+        stmt.run(id, displayName, email || null, role, now, now);
+        
+        const token = signToken(id, role);
+
+        res.status(201).json({ 
+            id, 
+            displayName, 
+            email, 
+            role, 
+            createdAt: now, 
+            lastLoginAt: now,
+            token
+        });
+    } catch (err) {
+        console.error('Error creating user:', err);
+        res.status(500).json({ error: 'Failed to create user' });
     }
 });
 

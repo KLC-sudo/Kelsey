@@ -32,11 +32,26 @@ export async function initDB() {
             id TEXT PRIMARY KEY,
             display_name TEXT NOT NULL,
             email TEXT,
+            password_hash TEXT,
             role TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             last_login_at INTEGER NOT NULL
         )
     `);
+
+    // Migration: add password_hash column to existing users tables
+    try {
+        const cols = rawDB.exec("PRAGMA table_info(users)");
+        if (cols && cols.length > 0) {
+            const hasPasswordHash = cols[0].values.some(row => row[1] === 'password_hash');
+            if (!hasPasswordHash) {
+                rawDB.run('ALTER TABLE users ADD COLUMN password_hash TEXT');
+                console.log('🔄 Migrated users table: added password_hash column');
+            }
+        }
+    } catch (e) {
+        // Column already exists or migration not needed
+    }
 
     rawDB.run(`
         CREATE TABLE IF NOT EXISTS user_progress (

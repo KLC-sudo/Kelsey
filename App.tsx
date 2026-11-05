@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { AuthGate } from './components/AuthGate';
 import { ModeSelector } from './components/ModeSelector';
 import { RoleSelector } from './components/RoleSelector';
 import { LanguageLevelPicker } from './components/LanguageLevelPicker';
@@ -16,10 +15,12 @@ import { FreeModeApp } from './pages/FreeModeApp';
 import { TutorSessionPage } from './pages/TutorSessionPage';
 import { StudentSessionPage } from './pages/StudentSessionPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { AuthPage } from './pages/AuthPage';
 
-function AuthPage() {
+function AuthWrapper() {
   const { dispatch } = useAppContext();
-  return <AuthGate onAuthenticated={() => dispatch({ type: 'SET_AUTH', isAuthed: true })} />;
+  const navigate = useNavigate();
+  return <AuthPage onAuthenticated={() => { dispatch({ type: 'SET_AUTH', isAuthed: true }); navigate('/'); }} />;
 }
 
 function ModeSelectPage() {
@@ -122,7 +123,7 @@ function AppRoutes() {
   const navigate = useNavigate();
 
   if (!state.isAuthed) {
-    return <AuthPage />;
+    return <AuthWrapper />;
   }
 
   return (

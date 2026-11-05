@@ -41,7 +41,76 @@ export function getAuthHeaders(): Record<string, string> {
 }
 
 // ─────────────────────────────────────────────
-// Create a new account and persist it
+// Register with email + password
+// ─────────────────────────────────────────────
+
+export interface RegisterFormData {
+  email: string;
+  password: string;
+  displayName: string;
+  role: UserRole;
+}
+
+export async function registerAccount(input: RegisterFormData): Promise<UserAccount> {
+  const response = await fetch('/api/users/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: 'Registration failed' }));
+    throw new Error(data.error || 'Registration failed');
+  }
+
+  const data = await response.json();
+  const account: UserAccount = {
+    id: data.id,
+    role: data.role,
+    displayName: data.displayName,
+    email: data.email,
+    createdAt: data.createdAt,
+    lastLoginAt: data.lastLoginAt,
+  };
+  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+  if (data.token) setToken(data.token);
+  setAuthState({ isAuthenticated: true, account, isGuest: false });
+  return account;
+}
+
+// ─────────────────────────────────────────────
+// Login with email + password
+// ─────────────────────────────────────────────
+
+export async function loginAccount(email: string, password: string): Promise<UserAccount> {
+  const response = await fetch('/api/users/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: 'Login failed' }));
+    throw new Error(data.error || 'Login failed');
+  }
+
+  const data = await response.json();
+  const account: UserAccount = {
+    id: data.id,
+    role: data.role,
+    displayName: data.displayName,
+    email: data.email,
+    createdAt: data.createdAt,
+    lastLoginAt: data.lastLoginAt,
+  };
+  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+  if (data.token) setToken(data.token);
+  setAuthState({ isAuthenticated: true, account, isGuest: false });
+  return account;
+}
+
+// ─────────────────────────────────────────────
+// Create a new account and persist it (legacy/guest)
 // ─────────────────────────────────────────────
 
 export async function createAccount(input: RegisterInput): Promise<UserAccount> {

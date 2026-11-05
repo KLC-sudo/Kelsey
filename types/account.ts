@@ -11,7 +11,7 @@
 // Roles
 // ─────────────────────────────────────────────
 
-export type UserRole = 'student' | 'tutor' | 'admin';
+export type UserRole = 'student' | 'teacher' | 'school';
 
 // ─────────────────────────────────────────────
 // User Account
