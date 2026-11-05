@@ -1,15 +1,99 @@
 import crypto from 'crypto';
+import { getDB, saveDB } from './db.js';
 
 /**
- * Manages active tutor-student session rooms
+ * Manages active tutor-student session rooms.
+ * Rooms are held in memory for fast access but persisted to SQLite
+ * so they survive server restarts.
  */
 class RoomManager {
     constructor() {
-        this.rooms = new Map(); // roomId -> { tutorId, studentId, createdAt, lessonId }
+        this.rooms = new Map(); // roomId -> room object
         this.userRooms = new Map(); // socketId -> roomId
 
         // Cleanup stale rooms every 5 minutes
         setInterval(() => this.cleanupStaleRooms(), 5 * 60 * 1000);
+    }
+
+    /**
+     * Load persisted rooms from the database into memory.
+     * Call once at server startup after initDB().
+     */
+    loadFromDB() {
+        try {
+            const db = getDB();
+            const rows = db.prepare('SELECT * FROM rooms').all();
+            let loaded = 0;
+
+            for (const row of rows) {
+                this.rooms.set(row.room_id, {
+                    tutorId: `persisted:${row.room_id}`, // placeholder — tutor must rejoin
+                    tutorName: row.tutor_name,
+                    studentId: null,
+                    students: new Map(),
+                    createdAt: row.created_at,
+                    lessonId: row.lesson_id,
+                    state: JSON.parse(row.room_state || '{}'),
+                    boardCards: JSON.parse(row.board_cards || '[]'),
+                    tutorDisconnected: true, // tutor needs to reconnect
+                    studentDisconnected: false,
+                    persisted: true,
+                });
+                loaded++;
+            }
+
+            if (loaded > 0) {
+                console.log(`📦 Loaded ${loaded} persisted room(s) from database`);
+            }
+        } catch (err) {
+            console.error('Failed to load rooms from DB:', err.message);
+        }
+    }
+
+    /**
+     * Persist a room to the database (upsert).
+     */
+    _persistRoom(roomId) {
+        try {
+            const room = this.rooms.get(roomId);
+            if (!room) return;
+
+            const db = getDB();
+            const now = Date.now();
+            db.prepare(`
+                INSERT INTO rooms (room_id, tutor_id, tutor_name, lesson_id, board_cards, room_state, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(room_id) DO UPDATE SET
+                    tutor_name = excluded.tutor_name,
+                    lesson_id = excluded.lesson_id,
+                    board_cards = excluded.board_cards,
+                    room_state = excluded.room_state,
+                    updated_at = excluded.updated_at
+            `).run(
+                roomId,
+                room.tutorId,
+                room.tutorName,
+                room.lessonId,
+                JSON.stringify(room.boardCards),
+                JSON.stringify(room.state),
+                room.createdAt,
+                now
+            );
+        } catch (err) {
+            console.error(`Failed to persist room ${roomId}:`, err.message);
+        }
+    }
+
+    /**
+     * Remove a room from the database.
+     */
+    _deleteRoomFromDB(roomId) {
+        try {
+            const db = getDB();
+            db.prepare('DELETE FROM rooms WHERE room_id = ?').run(roomId);
+        } catch (err) {
+            console.error(`Failed to delete room ${roomId} from DB:`, err.message);
+        }
     }
 
     /**
@@ -36,16 +120,13 @@ class RoomManager {
      * Create a new room (tutor initiates)
      */
     createRoom(tutorSocketId, lessonId = null, roomId = null) {
-        // If a roomId is provided, ensure it's uppercase and check if it's a reconnection attempt
         const finalRoomId = (roomId || this.generateRoomCode()).toUpperCase();
 
         if (this.rooms.has(finalRoomId)) {
             const existingRoom = this.rooms.get(finalRoomId);
-            // If the room exists and the tutor is disconnected, allow reclaim
             if (existingRoom.tutorDisconnected) {
                 return this.reclaimTutorRoom(tutorSocketId, finalRoomId) ? finalRoomId : null;
             }
-            // If it's the SAME tutor, just return the id (idempotent)
             if (existingRoom.tutorId === tutorSocketId) {
                 return finalRoomId;
             }
@@ -56,16 +137,17 @@ class RoomManager {
             tutorId: tutorSocketId,
             tutorName: 'Tutor',
             studentId: null,
-            students: new Map(), // socketId -> { name, joinedAt }
+            students: new Map(),
             createdAt: Date.now(),
             lessonId,
             state: {},
-            boardCards: [],      // ← persisted card state for reconnect rehydration
+            boardCards: [],
             tutorDisconnected: false,
-            studentDisconnected: false
+            studentDisconnected: false,
         });
 
         this.userRooms.set(tutorSocketId, finalRoomId);
+        this._persistRoom(finalRoomId);
 
         console.log(`✅ [RoomManager] Room created: ${finalRoomId} | Tutor: ${tutorSocketId}`);
         return finalRoomId;
@@ -86,32 +168,25 @@ class RoomManager {
             return { success: false, error: 'Room not found' };
         }
 
-        // Add student to the room (supports multiple students)
         room.students.set(studentSocketId, { name: studentName, joinedAt: Date.now() });
-        room.studentId = studentSocketId; // Keep legacy field for backward compat
+        room.studentId = studentSocketId;
         room.studentDisconnected = false;
         this.userRooms.set(studentSocketId, upperRoomId);
 
-        // Get list of all students in the room
         const studentList = this.getStudents(upperRoomId);
 
         console.log(`✅ [RoomManager] Student ${studentName} (${studentSocketId}) joined room ${upperRoomId}. Total: ${studentList.length}`);
         return { success: true, tutorId: room.tutorId, students: studentList };
     }
 
-    /**
-     * Set tutor name for a room
-     */
     setTutorName(roomId, name) {
         const room = this.rooms.get(roomId?.toUpperCase());
         if (room) {
             room.tutorName = name;
+            this._persistRoom(roomId.toUpperCase());
         }
     }
 
-    /**
-     * Get all students in a room
-     */
     getStudents(roomId) {
         const room = this.rooms.get(roomId?.toUpperCase());
         if (!room) return [];
@@ -122,89 +197,63 @@ class RoomManager {
         }));
     }
 
-    /**
-     * Get tutor info for a room
-     */
     getTutor(roomId) {
         const room = this.rooms.get(roomId?.toUpperCase());
         if (!room) return null;
         return { socketId: room.tutorId, name: room.tutorName };
     }
 
-    /**
-     * Get room by ID
-     */
     getRoom(roomId) {
         return this.rooms.get(roomId);
     }
 
-    /**
-     * Get room ID for a user's socket
-     */
     getRoomBySocket(socketId) {
         const roomId = this.userRooms.get(socketId);
         return roomId ? this.rooms.get(roomId) : null;
     }
 
-    /**
-     * Update room state (phase, whiteboard, etc.)
-     */
     updateRoomState(roomId, stateUpdate) {
         const room = this.rooms.get(roomId);
         if (room) {
             room.state = { ...room.state, ...stateUpdate };
+            this._persistRoom(roomId);
             return true;
         }
         return false;
     }
 
-    /**
-     * Push a board card into room state (for reconnect rehydration)
-     */
     pushBoardCard(roomId, card) {
         const room = this.rooms.get(roomId);
         if (!room) return false;
         room.boardCards.push(card);
+        this._persistRoom(roomId);
         return true;
     }
 
-    /**
-     * Remove a board card from room state (retraction)
-     */
     retractBoardCard(roomId, cardId) {
         const room = this.rooms.get(roomId);
         if (!room) return false;
         room.boardCards = room.boardCards.filter(c => c.id !== cardId);
+        this._persistRoom(roomId);
         return true;
     }
 
-    /**
-     * Clear all board cards for a room (session end or clear event)
-     */
     clearBoardCards(roomId) {
         const room = this.rooms.get(roomId);
         if (!room) return false;
         room.boardCards = [];
+        this._persistRoom(roomId);
         return true;
     }
 
-    /**
-     * Get current board cards for a room (used on student reconnect)
-     */
     getBoardCards(roomId) {
         return this.rooms.get(roomId)?.boardCards ?? [];
     }
 
-    /**
-     * Get roomId by socket ID (for student-signal relay)
-     */
     getRoomIdBySocket(socketId) {
         return this.userRooms.get(socketId) ?? null;
     }
 
-    /**
-     * Handle user disconnect
-     */
     handleDisconnect(socketId) {
         const roomId = this.userRooms.get(socketId);
 
@@ -216,31 +265,31 @@ class RoomManager {
         const isTutor = room.tutorId === socketId;
         const otherUserId = isTutor ? room.studentId : room.tutorId;
 
-        // Mark as disconnected but don't delete yet
         if (isTutor) {
             room.tutorDisconnected = true;
             console.log(`⚠️ Tutor disconnected from ${roomId}. Waiting for reconnection...`);
         } else {
-            // Remove student from the students map
             room.students.delete(socketId);
             room.studentDisconnected = room.students.size === 0;
             const studentList = this.getStudents(roomId);
             console.log(`⚠️ Student disconnected from ${roomId}. Remaining: ${studentList.length}`);
         }
 
+        this._persistRoom(roomId);
+
         // Set a timeout to cleanup after 60 seconds of inactivity
         setTimeout(() => {
             const currentRoom = this.rooms.get(roomId);
             if (currentRoom && (currentRoom.tutorDisconnected || (currentRoom.studentId && currentRoom.studentDisconnected))) {
-                // If the user hasn't reconnected, delete it
                 if (currentRoom.tutorDisconnected) {
                     this.rooms.delete(roomId);
                     this.userRooms.delete(socketId);
                     if (otherUserId) this.userRooms.delete(otherUserId);
+                    this._deleteRoomFromDB(roomId);
                     console.log(`❌ Room ${roomId} closed after tutor failed to reconnect`);
                 }
             }
-        }, 60000); // 1 minute grace period
+        }, 60000);
 
         return {
             roomId,
@@ -249,24 +298,20 @@ class RoomManager {
         };
     }
 
-    /**
-     * Allow tutor to re-claim an existing room if they reconnect
-     */
     reclaimTutorRoom(socketId, roomId) {
         const room = this.rooms.get(roomId);
         if (room) {
             room.tutorId = socketId;
             room.tutorDisconnected = false;
+            room.persisted = false;
             this.userRooms.set(socketId, roomId);
+            this._persistRoom(roomId);
             console.log(`♻️ Tutor re-claimed room ${roomId}`);
             return true;
         }
         return false;
     }
 
-    /**
-     * Clean up rooms older than 2 hours
-     */
     cleanupStaleRooms() {
         const now = Date.now();
         const maxAge = 2 * 60 * 60 * 1000; // 2 hours
@@ -279,13 +324,11 @@ class RoomManager {
                 if (room.studentId) {
                     this.userRooms.delete(room.studentId);
                 }
+                this._deleteRoomFromDB(roomId);
             }
         }
     }
 
-    /**
-     * Get stats for monitoring
-     */
     getStats() {
         return {
             totalRooms: this.rooms.size,

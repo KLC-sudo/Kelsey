@@ -2,14 +2,14 @@
  * Account Utility
  *
  * Create, persist, and retrieve user accounts.
- * Currently uses localStorage. Structured for easy backend swap
- * (replace read/write helpers with API calls when ready).
+ * Uses JWT tokens for API authentication.
  */
 
 import type { UserAccount, AuthState, RegisterInput, LoginInput, UserRole } from '../types/account';
 
 const ACCOUNT_KEY = 'kelsey_user_account';
 const AUTH_KEY = 'kelsey_auth_state';
+const TOKEN_KEY = 'kelsey_jwt_token';
 
 // ─────────────────────────────────────────────
 // UUID generator (simple, no dependency)
@@ -17,6 +17,27 @@ const AUTH_KEY = 'kelsey_auth_state';
 
 function generateId(): string {
   return 'usr_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+}
+
+// ─────────────────────────────────────────────
+// Token management
+// ─────────────────────────────────────────────
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 // ─────────────────────────────────────────────
@@ -41,6 +62,7 @@ export async function createAccount(input: RegisterInput): Promise<UserAccount> 
       lastLoginAt: data.lastLoginAt,
     };
     localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+    if (data.token) setToken(data.token);
     setAuthState({ isAuthenticated: true, account, isGuest: false });
     return account;
   } catch (err) {
@@ -121,6 +143,7 @@ export function getAuthState(): AuthState {
 
 export function signOut(): void {
   localStorage.removeItem(AUTH_KEY);
+  clearToken();
   // Note: keep ACCOUNT_KEY so returning users get their name back
 }
 

@@ -83,6 +83,19 @@ export async function initDB() {
         )
     `);
 
+    rawDB.run(`
+        CREATE TABLE IF NOT EXISTS rooms (
+            room_id TEXT PRIMARY KEY,
+            tutor_id TEXT NOT NULL,
+            tutor_name TEXT DEFAULT 'Tutor',
+            lesson_id TEXT,
+            board_cards TEXT DEFAULT '[]',
+            room_state TEXT DEFAULT '{}',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+    `);
+
     saveDB();
     console.log('✅ Database initialized at', dbPath);
 }

@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { getDB } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { signToken } from '../jwt.js';
 
 const router = express.Router();
 
@@ -36,6 +37,8 @@ router.post('/', createAccountLimiter, (req, res) => {
         `);
         stmt.run(id, displayName, email || null, role, now, now);
         
+        const token = signToken(id, role);
+
         res.status(201).json({ 
             id, 
             displayName, 
@@ -43,11 +46,49 @@ router.post('/', createAccountLimiter, (req, res) => {
             role, 
             createdAt: now, 
             lastLoginAt: now,
-            token: id
+            token
         });
     } catch (err) {
         console.error('Error creating user:', err);
         res.status(500).json({ error: 'Failed to create user' });
+    }
+});
+
+// Login (returns JWT for existing user)
+router.post('/login', (req, res) => {
+    const { displayName, role } = req.body;
+
+    if (!displayName || !role) {
+        return res.status(400).json({ error: 'displayName and role are required' });
+    }
+
+    const db = getDB();
+
+    try {
+        const stmt = db.prepare('SELECT * FROM users WHERE display_name = ? AND role = ?');
+        const user = stmt.get(displayName, role);
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const now = Date.now();
+        db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(now, user.id);
+
+        const token = signToken(user.id, user.role);
+
+        res.json({
+            id: user.id,
+            displayName: user.display_name,
+            email: user.email,
+            role: user.role,
+            createdAt: user.created_at,
+            lastLoginAt: now,
+            token
+        });
+    } catch (err) {
+        console.error('Error logging in:', err);
+        res.status(500).json({ error: 'Failed to login' });
     }
 });
 

@@ -78,52 +78,55 @@ io.on('connection', (socket) => {
 
     // Student joins an existing room
     socket.on('join-room', ({ roomId, studentName }) => {
-        const result = roomManager.joinRoom(socket.id, roomId, studentName || 'Student');
+        const upperRoomId = (roomId || '').toUpperCase();
+        const result = roomManager.joinRoom(socket.id, upperRoomId, studentName || 'Student');
 
         if (!result.success) {
             socket.emit('join-error', { error: result.error });
             return;
         }
 
-        socket.join(roomId);
-        socket.emit('room-joined', { roomId });
+        socket.join(upperRoomId);
+        socket.emit('room-joined', { roomId: upperRoomId });
 
         // Send current board state to the reconnecting/joining student
-        const currentCards = roomManager.getBoardCards(roomId.toUpperCase());
+        const currentCards = roomManager.getBoardCards(upperRoomId);
         if (currentCards.length > 0) {
             socket.emit('board-rehydrate', { cards: currentCards });
-            console.log(`Sent ${currentCards.length} board cards to rejoining student in ${roomId}`);
+            console.log(`Sent ${currentCards.length} board cards to rejoining student in ${upperRoomId}`);
         }
 
         // Get updated student list
-        const students = roomManager.getStudents(roomId.toUpperCase());
-        const tutor = roomManager.getTutor(roomId.toUpperCase());
+        const students = roomManager.getStudents(upperRoomId);
+        const tutor = roomManager.getTutor(upperRoomId);
 
         // Notify tutor that student has joined (with full roster)
         io.to(result.tutorId).emit('peer-joined', {
             peerId: socket.id,
-            roomId,
+            roomId: upperRoomId,
             students,
             tutor
         });
 
         // Notify all students in the room about the updated roster
-        io.to(roomId).emit('roster-update', { students, tutor });
+        io.to(upperRoomId).emit('roster-update', { students, tutor });
 
-        console.log(`Student ${studentName || socket.id} joined room ${roomId}. Total: ${students.length}`);
+        console.log(`Student ${studentName || socket.id} joined room ${upperRoomId}. Total: ${students.length}`);
     });
 
     // Get current roster for a room
     socket.on('get-roster', ({ roomId }) => {
         if (!roomId) return;
-        const students = roomManager.getStudents(roomId.toUpperCase());
-        const tutor = roomManager.getTutor(roomId.toUpperCase());
+        const upperRoomId = roomId.toUpperCase();
+        const students = roomManager.getStudents(upperRoomId);
+        const tutor = roomManager.getTutor(upperRoomId);
         socket.emit('roster-update', { students, tutor });
     });
 
     // WebRTC signaling: Offer
     socket.on('webrtc-offer', ({ roomId, offer }) => {
-        const room = roomManager.getRoom(roomId);
+        const upperRoomId = (roomId || '').toUpperCase();
+        const room = roomManager.getRoom(upperRoomId);
         if (!room) return;
 
         if (room.studentId) {
@@ -136,7 +139,8 @@ io.on('connection', (socket) => {
 
     // WebRTC signaling: Answer
     socket.on('webrtc-answer', ({ roomId, answer }) => {
-        const room = roomManager.getRoom(roomId);
+        const upperRoomId = (roomId || '').toUpperCase();
+        const room = roomManager.getRoom(upperRoomId);
         if (!room) return;
 
         io.to(room.tutorId).emit('webrtc-answer', {
@@ -147,7 +151,8 @@ io.on('connection', (socket) => {
 
     // WebRTC signaling: ICE Candidate
     socket.on('ice-candidate', ({ roomId, candidate }) => {
-        const room = roomManager.getRoom(roomId);
+        const upperRoomId = (roomId || '').toUpperCase();
+        const room = roomManager.getRoom(upperRoomId);
         if (!room) return;
 
         const targetId = room.tutorId === socket.id ? room.studentId : room.tutorId;
@@ -161,31 +166,37 @@ io.on('connection', (socket) => {
 
     // State synchronization (tutor -> student)
     socket.on('state-update', ({ roomId, stateEvent }) => {
-        const room = roomManager.getRoom(roomId);
+        const upperRoomId = (roomId || '').toUpperCase();
+        const room = roomManager.getRoom(upperRoomId);
         if (!room || room.tutorId !== socket.id) return;
 
         if (stateEvent.type === 'PUSH_CARD') {
-            roomManager.pushBoardCard(roomId, stateEvent.card);
+            roomManager.pushBoardCard(upperRoomId, stateEvent.card);
         } else if (stateEvent.type === 'RETRACT_CARD') {
-            roomManager.retractBoardCard(roomId, stateEvent.cardId);
+            roomManager.retractBoardCard(upperRoomId, stateEvent.cardId);
         } else if (stateEvent.type === 'CLEAR_BOARD' || stateEvent.type === 'END_SESSION') {
-            roomManager.clearBoardCards(roomId);
+            roomManager.clearBoardCards(upperRoomId);
         }
 
-        roomManager.updateRoomState(roomId, { lastUpdate: stateEvent });
+        roomManager.updateRoomState(upperRoomId, { lastUpdate: stateEvent });
 
-        if (room.studentId) {
-            io.to(room.studentId).emit('state-update', { stateEvent });
-        }
+        // Broadcast to ALL students via Socket.io room (excludes sender/tutor)
+        socket.to(upperRoomId).emit('state-update', { stateEvent });
 
-        console.log(`State update in room ${roomId}:`, stateEvent.type);
+        const students = roomManager.getStudents(upperRoomId);
+        console.log(`State update in room ${upperRoomId}:`, stateEvent.type, `(${students.length} student(s))`);
     });
 
     // Student -> Tutor signal relay (flags, annotations)
     socket.on('student-signal', ({ roomId, signal }) => {
         const upperRoomId = (roomId || '').toUpperCase();
         const room = roomManager.getRoom(upperRoomId);
-        if (!room || room.studentId !== socket.id) return;
+        if (!room) return;
+
+        // Verify sender is a student in this room
+        const students = roomManager.getStudents(upperRoomId);
+        const isStudent = students.some(s => s.socketId === socket.id);
+        if (!isStudent) return;
 
         io.to(room.tutorId).emit('student-signal', {
             signal,
@@ -280,6 +291,7 @@ async function start() {
     try {
         await initDB();
         await autoSeed();
+        roomManager.loadFromDB();
         httpServer.listen(PORT, '0.0.0.0', () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`WebSocket endpoint: ws://0.0.0.0:${PORT}`);
