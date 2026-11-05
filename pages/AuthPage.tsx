@@ -66,8 +66,8 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated?: () => void }) 
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6 animate-fade-in">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-sm space-y-5 sm:space-y-6 animate-fade-in my-auto">
         {/* Logo */}
         <div className="text-center space-y-2">
           <div className="text-5xl">🌍</div>
