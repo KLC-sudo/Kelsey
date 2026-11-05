@@ -5,6 +5,7 @@ import { LiveBoard } from '../components/LiveBoard';
 import { SessionCodeInput } from '../components/SessionCodeInput';
 import { ConnectionStatus } from '../components/ConnectionStatus';
 import { PTTButton } from '../components/PTTButton';
+import { ConfidenceBar } from '../components/ConfidenceBar';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { StateSyncManager } from '../utils/stateSync';
 import { buildReviewSession, saveSessionToHistory } from '../utils/reviewHistory';
@@ -86,7 +87,16 @@ export function StudentSessionPage() {
 
     const handleEndSession = useCallback(() => {
         if (boardCards.length > 0) {
-            const session = buildReviewSession(`session-${Date.now()}`, 'unknown', 'Session', 'german' as any, 'A1.1', boardCards, sessionBoardStartRef.current, undefined, account?.id);
+            const lang = (boardCards[0]?.language as any) ?? 'german';
+            const lvl = (boardCards[0]?.level as any) ?? 'A1.1';
+            const session = buildReviewSession(
+                `session-${Date.now()}`,
+                'unknown', 'Session',
+                lang, lvl,
+                boardCards, sessionBoardStartRef.current,
+                undefined,
+                account?.id
+            );
             saveSessionToHistory(session);
         }
         dispatch({ type: 'RESET_BOARD' });
@@ -145,7 +155,10 @@ export function StudentSessionPage() {
                         <div className="flex-1 min-h-0">
                             <LiveBoard cards={boardCards} tutorName="Your Tutor" onFlagCard={handleFlagCard} onUnflagCard={handleUnflagCard} />
                         </div>
-                        <div className="shrink-0 flex justify-center pb-4">
+                        <div className="shrink-0 flex flex-col items-center gap-3 pb-4">
+                            <ConfidenceBar onConfidence={(level) => {
+                                stateSyncRef.current?.sendStudentSignal({ type: 'STUDENT_CONFIDENCE', level, timestamp: Date.now() });
+                            }} />
                             <PTTButton />
                         </div>
                     </div>

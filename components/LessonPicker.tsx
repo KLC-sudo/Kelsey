@@ -193,18 +193,38 @@ export const LessonPicker: React.FC<LessonPickerProps> = ({
                     <p className="text-gray-400 mb-6 max-w-md mx-auto">
                         There are currently no generated lessons for {language} {level} in the database.
                     </p>
-                    <button 
-                        onClick={() => {
+                    <button
+                        onClick={async () => {
                             setIsGenerating(true);
-                            setTimeout(() => {
-                                alert('AI Generation endpoint required. For now, use Advanced Options to upload a JSON.');
-                                setIsGenerating(false);
-                            }, 1000);
+                            try {
+                                const res = await fetch('/api/lessons/generate', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        language,
+                                        level,
+                                        lessonNumber: 1,
+                                        topic: `${language.charAt(0).toUpperCase() + language.slice(1)} ${level} — Basics`,
+                                        grammarFocus: ['Basic sentence structure', 'Essential vocabulary', 'Common expressions'],
+                                    }),
+                                });
+                                const data = await res.json();
+                                if (res.ok) {
+                                    // Refresh lesson list
+                                    const refresh = await fetch(`/api/lessons?language=${language}&level=${level}`);
+                                    setLessons(await refresh.json());
+                                } else {
+                                    alert(`Generation failed: ${data.error}`);
+                                }
+                            } catch (e) {
+                                alert('Generation failed. Is the server running?');
+                            }
+                            setIsGenerating(false);
                         }}
                         disabled={isGenerating}
                         className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-semibold transition-all shadow-lg hover:shadow-blue-500/25 disabled:opacity-50"
                     >
-                        {isGenerating ? 'Generating...' : 'Generate First Lesson'}
+                        {isGenerating ? '⏳ Generating (may take 30s)...' : '✨ Generate First Lesson'}
                     </button>
                 </div>
             ) : (

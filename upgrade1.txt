@@ -1,0 +1,591 @@
+================================================================================
+KELSEY MVP DEVELOPMENT PLAN
+Upgraded from upgrade1.txt — with gap analysis and phased roadmap
+================================================================================
+
+--------------------------------------------------------------------------------
+PART 0: THE VISION (from upgrade1.txt)
+--------------------------------------------------------------------------------
+
+┌────────────────────────────────────────────────────────┐
+│                   THE LANGUAGE ECOSYSTEM               │
+├──────────────────────────────────┬─────────────────────────────┤
+│   MODE A: LIVE COMPANION         │   MODE B: ASYNCHRONOUS HUB  │
+│   (Used DURING Class)            │   (Used AFTER Class)        │
+├──────────────────────────────────┼─────────────────────────────┤
+│ • Live Interactive Decks         │ • Micro-Learning & Drills   │
+│ • Real-time Co-Writing           │ • AI Conversation Partners  │
+│ • Instant Polls/Quizzes          │ • Peer Challenge Arenas     │
+│ • Live Pronunciation             │ • Spaced Repetition Decks   │
+└──────────────────────────────────┴─────────────────────────────┘
+
+Mode A (In-Class Companion): Students keep the app open in split-screen during
+class. Interactive slides, translation challenges, and collaborative boards
+update instantly.
+
+Mode B (Post-Class Immersion): After class, the app becomes a self-paced
+playground for homework, AI conversational drills, and gamified practice.
+
+--------------------------------------------------------------------------------
+PART 1: CURRENT STATE — WHAT EXISTS vs WHAT'S MISSING
+--------------------------------------------------------------------------------
+
+=== ✅ WORKS TODAY ===
+
+  • Auth (JWT create/guest) + error boundaries
+  • 9-route React Router with AuthGate → ModeSelector flow
+  • Human-tutor live board: room create/join, Socket.io sync,
+    card push/retract/clear, student flag/annotate, roster, rehydration
+  • TutorDeckPanel custom-card quick deploy (vocabulary drop-in analog)
+  • LiveBoard rendering + PDF export + card animations
+  • ReviewHistory + FlashcardReview flip cards (in-memory only)
+  • 5 German A1.1 lessons seeded in SQLite
+  • Lesson schema fully typed (6 phases, exercises, assessment)
+  • Progress computation + localStorage persistence
+  • 21 passing tests, clean typecheck
+  • Deployed to Contabo VPS (Caddy + PM2 + auto-SSL)
+
+=== ⚠️ EXISTS BUT BROKEN/DISABLED ===
+
+  1. Gemini Live voice tutor — code fully written, button hardcoded off
+  2. Free Conversation mode — no language selector, dead-ends immediately
+  3. LiveKit voice — token/url hardcoded to null in both session pages
+  4. WebRTC audio — full implementation exists, never imported
+  5. Class-mode timer — gated on never-true isRecording, always 0:00
+  6. Class-mode board — permanently empty, lesson deck never built
+  7. Phase sync — listener exists on student side, sender never fires
+  8. Assessment score — hardcoded 85, exerciseAttempts always []
+  9. Server progress restore — syncProgressFromServer() never called
+  10. Streak UI — components exist, never rendered anywhere
+  11. TextChat component — complete UI, zero imports
+  12. Lesson generation — broken import in generate-lessons.mjs
+  13. classInstructions — missing Chinese/English tutor names
+  14. buildReviewSession — tutorName undefined, lang/level hardcoded
+  15. PLAN.md Phase 1 "account creation" items still unchecked
+
+=== ❌ COMPLETELY MISSING ===
+
+  • Interactive exercises (fill-blank, drag-drop, quizzes)
+  • Student answer submission + real scoring
+  • Confidence meters / micro-polling
+  • AI text conversation (no text input anywhere)
+  • Spaced repetition scheduling (SRS)
+  • Peer challenges / leaderboards / points / badges
+  • Teacher dashboard beyond whiteboard host
+  • Student profiles / dashboards
+  • Multi-language curriculum (49/50 combos empty)
+  • Free-mode target language selection
+  • Pronunciation / STT / audio recording
+  • Content generation endpoint (UI button is a fake alert)
+
+--------------------------------------------------------------------------------
+PART 2: MVP SCOPE — WHAT SHIPS
+--------------------------------------------------------------------------------
+
+MVP Definition: A student can (1) take a structured lesson with real exercises,
+(2) have an AI text conversation, (3) review cards with spaced repetition,
+(4) see their progress/streak, and (5) a tutor can run a live session with
+polling. Voice and gamification are POST-MVP.
+
+MVP In Scope:
+  ├── Structured class with working exercises and real scoring
+  ├── AI text conversation (Gemini text API, not voice)
+  ├── SRS flashcard system with server persistence
+  ├── Confidence meter / micro-polling in live sessions
+  ├── Progress sync + streak display
+  ├── Lesson generation endpoint (fill the 49 empty combos)
+  └── Clean, tested, deployable code
+
+MVP Out of Scope (deferred):
+  ├── Voice conversation (Gemini Live / LiveKit / WebRTC — pick one later)
+  ├── Peer challenges / leaderboards
+  ├── Pronunciation heatmaps / STT scoring
+  ├── Full teacher dashboard with analytics
+  ├── Drag-drop interactive slates (fill-blank first)
+  └── Email/password auth (keep JWT + display name)
+
+--------------------------------------------------------------------------------
+PART 3: PHASED DEVELOPMENT ROADMAP
+--------------------------------------------------------------------------------
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 0: FOUNDATION FIXES (Days 1-3)
+Fix everything that's broken before building anything new.
+═══════════════════════════════════════════════════════════════════════════════
+
+0.1  Free-mode language selector
+     - Add TargetLanguage picker to FreeModeApp before difficulty select
+     - Dispatch SET_TARGET_LANGUAGE (currently never dispatched on free path)
+     - Fixes: dead-end at "Select a lesson to begin"
+
+0.2  Class-mode lesson delivery
+     - Call buildDeckFromLesson(currentLesson) when appMode === 'class'
+     - Dispatch APPEND_BOARD_CARD for each lesson card
+     - Fixes: permanently empty board in structured class mode
+
+0.3  Unfreeze class timer
+     - Decouple sessionElapsedTime from isRecording
+     - Start timer on lesson start, stop on completion
+     - Fixes: always-0:00 HUD, addStudyTime records 0 minutes
+
+0.4  Phase sync sender
+     - In handleNextPhase/handlePreviousPhase, send CHANGE_PHASE
+       via stateSyncRef.current (listener already exists on student)
+     - Fixes: students never see phase changes
+
+0.5  Fix classInstructions tutor names
+     - Add chinese: 'Lín' and english: 'David' to TUTOR_NAMES map
+     - Fixes: undefined tutor name for 2 of 5 languages
+
+0.6  Fix buildReviewSession arguments
+     - Pass actual tutorName, language, level instead of hardcoded values
+     - Files: TutorSessionPage.tsx:107, StudentSessionPage.tsx:89
+
+0.7  Fix broken lesson generator scripts
+     - generate-lessons.mjs/.js import non-existent `generateLesson`
+     - Rename to `generateLessonContent` or fix import
+
+0.8  Remove orphaned files
+     - pages/Pages.tsx (duplicate page definitions)
+     - pages/AuthPage.tsx (unused)
+     - components/BreakManagement.tsx (unused)
+     - Dead imports in FreeModeApp.tsx (useWebRTC, LiveKitRoom, etc.)
+
+     Deliverable: All existing flows work end-to-end without dead-ends.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 1: AI TEXT CONVERSATION (Days 3-7)
+Make Mode A and Mode B actually teach something.
+═══════════════════════════════════════════════════════════════════════════════
+
+1.1  Wire TextChat to Gemini text API
+     - Import TextChat.tsx into FreeModeApp (currently orphaned)
+     - Create aiChat.ts utility:
+       - sendChatMessage(message, history, systemInstruction) → generateContent
+       - Reuse getClassModeSystemInstruction for class mode
+       - Reuse getSystemInstruction for free mode
+     - Chat state: messages[], isLoading, error handling
+     - Streaming response (responseStreaming for UX)
+
+1.2  Free-mode chat flow
+     - TargetLanguage selector (from 0.1)
+     - Difficulty selector (already exists)
+     - TextChat replaces the disabled mic button as primary interaction
+     - Generate session summary from chat transcript on end
+
+1.3  Class-mode chat integration
+     - Phase-aware system instruction (already built in classInstructions)
+     - Chat sidebar alongside the lesson board
+     - AI can explain current phase's grammar/vocab on demand
+
+1.4  Session summary from text
+     - Reuse generateSessionSummary() — already works, just feed it
+       chat transcript instead of voice transcript
+
+     Deliverable: Users can chat with an AI tutor in any of 5 languages.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ utils/aiChat.ts (new)                       │
+     │ components/TextChat.tsx (wire up)            │
+     │ pages/FreeModeApp.tsx (integrate chat)       │
+     │ context/AppContext.tsx (chat state)          │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 2: INTERACTIVE EXERCISES (Days 7-14)
+Turn static lesson cards into activities students actually do.
+═══════════════════════════════════════════════════════════════════════════════
+
+2.1  Exercise card variants on BoardCard
+     - Extend types/board.ts BoardCard with exercise subtypes:
+       - fillBlank: { sentence with ___, options or free text }
+       - multipleChoice: { question, options[], correctIndex }
+       - wordOrder: { scrambled words[], correctOrder }
+       - translation: { sourceText, targetText, acceptedAlternates[] }
+     - Render variants in LiveBoard based on card type
+
+2.2  Fill-blank component
+     - Interactive input inside the card
+     - Validate against expectedPatterns / validationMethod
+     - Show correct/incorrect feedback inline
+     - Emit ExerciseAttempt on submission
+
+2.3  Multiple-choice component
+     - Tap-to-select options
+     - Instant feedback (green/red)
+     - Auto-advance to next card on correct
+
+2.4  Real scoring
+     - Track exerciseAttempts[] per exercise
+     - Calculate score from correct/total (replace hardcoded 85)
+     - Feed into LessonComplete component
+     - Save assessment to progress via completeLesson()
+
+2.5  Phase-gated progression
+     - Assessment phase: require X% correct before advancing
+     - Visual progress indicator on ClassHUD
+
+     Deliverable: Students fill blanks, answer quizzes, get real scores.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ types/board.ts (extend BoardCard)            │
+     │ components/exercises/FillBlank.tsx (new)     │
+     │ components/exercises/MultipleChoice.tsx      │
+     │ components/exercises/WordOrder.tsx (new)     │
+     │ components/LiveBoard.tsx (render variants)   │
+     │ utils/curriculumDeck.ts (build exercise cards│
+     │ pages/FreeModeApp.tsx (scoring logic)        │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 3: LIVE SESSION INTERACTIVITY (Days 14-21)
+Make Mode A actually interactive during class.
+═══════════════════════════════════════════════════════════════════════════════
+
+3.1  Confidence meter / micro-polling
+     - New StudentSignal variant in stateSync.ts:
+       { type: 'STUDENT_CONFIDENCE'; level: 'got-it' | 'too-fast' | 'need-example' }
+     - Student UI: 3-button bar (persistent, not per-card)
+     - Tutor UI: live tally bar with counts + pulse animation
+     - Server: relay via existing student-signal channel (no new infra)
+     - Aggregate in roomManager for late-joining tutors
+
+3.2  Instant vocabulary drop-in for class mode
+     - Add quick-input bar to ClassHUD (like TutorDeckPanel's custom card)
+     - Teacher types word → pushes flashcard to all students in real-time
+     - Reuse PUSH_CARD state event (already works)
+
+3.3  Live quiz / poll broadcast
+     - Tutor sends POLL_CARD: { question, options[], duration }
+     - Students see timed options, tap to vote
+     - Tutor sees live results bar (percentage per option)
+     - Socket.io broadcast (reuse state-update channel)
+
+3.4  Student response collection
+     - Student submits exercise answer → tutor sees in real-time
+     - New StudentSignal: { type: 'EXERCISE_RESPONSE'; exerciseId, answer, isCorrect }
+     - Tutor dashboard shows response summary
+
+     Deliverable: Tutor polls the room, students tap confidence/vote,
+     real-time feedback on comprehension.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ utils/stateSync.ts (new signal types)        │
+     │ components/ConfidenceBar.tsx (new)           │
+     │ components/PollDisplay.tsx (new)             │
+     │ components/TutorPollResults.tsx (new)        │
+     │ components/ClassHUD.tsx (quick vocab input)  │
+     │ server/index.js (relay new signal types)     │
+     │ server/roomManager.js (aggregate tallies)    │
+     │ pages/TutorSessionPage.tsx (integrate)       │
+     │ pages/StudentSessionPage.tsx (integrate)     │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 4: SPACED REPETITION (Days 21-28)
+Make Mode B's SRS actually spaced.
+═══════════════════════════════════════════════════════════════════════════════
+
+4.1  SRS database schema
+     - New table in server/db.js:
+       CREATE TABLE review_cards (
+         id TEXT PRIMARY KEY,
+         user_id TEXT NOT NULL,
+         card_data TEXT NOT NULL,        -- JSON: { front, back, source }
+         ease_factor REAL DEFAULT 2.5,
+         interval_days INTEGER DEFAULT 0,
+         repetitions INTEGER DEFAULT 0,
+         next_review_at INTEGER NOT NULL,
+         last_reviewed_at INTEGER,
+         FOREIGN KEY(user_id) REFERENCES users(id)
+       )
+     - Index on (user_id, next_review_at)
+
+4.2  SM-2 algorithm
+     - utils/srs.ts: calculateNextReview(card, quality) → updated card
+     - quality 0-5 (Again/Hard/Good/Easy)
+     - Standard SM-2 intervals: 1, 3, 7, 14, 30, 60, 120... days
+     - Handle "Again" → reset interval to 0, requeue today
+
+4.3  Server API
+     - GET  /api/users/:id/srs/due        → cards due today
+     - POST /api/users/:id/srs/:cardId    → submit review result
+     - POST /api/users/:id/srs/bulk       → import cards from session
+     - All behind requireAuth
+
+4.4  Card feed from sessions
+     - On LessonComplete → extract vocabulary + corrections → import to SRS
+     - On review-history study → import flagged cards to SRS
+     - On AI chat corrections → import to SRS (Phase 1 output)
+
+4.5  Redesign FlashcardReview
+     - Keep existing component API (already wired in 2 places)
+     - Replace internal "learned Set" with server-backed SRS state
+     - Add "Due Today" queue view
+     - Add quality rating buttons (Again/Hard/Good/Easy)
+     - Show next-review date after rating
+     - Persist after each card review
+
+4.6  Due-card dashboard
+     - Show "X cards due" badge on ModeSelector
+     - Streak integration (see Phase 5)
+
+     Deliverable: Cards scheduled by SM-2, due queue, persistent across devices.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ server/db.js (review_cards table)            │
+     │ server/routes/srs.js (new API)               │
+     │ utils/srs.ts (SM-2 algorithm)                │
+     │ utils/srsClient.ts (API client)              │
+     │ components/FlashcardReview.tsx (rewrite)     │
+     │ components/ModeSelector.tsx (due badge)      │
+     │ pages/FreeModeApp.tsx (feed on complete)     │
+     │ server/index.js (mount srs routes)           │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 5: PROGRESS & PROFILES (Days 28-35)
+Make progress visible and cross-device.
+═══════════════════════════════════════════════════════════════════════════════
+
+5.1  Server progress restore
+     - Call syncProgressFromServer() on app boot (AppProvider init)
+     - Use JWT token (getToken()) instead of raw user ID
+     - Merge server + local (take most recent by updatedAt)
+     - Fix silent .catch() — log and retry once
+
+5.2  Review history restore
+     - Call GET /api/users/:id/history on boot
+     - Merge with local reviewHistory
+     - Fix reviewHistory API calls to use JWT
+
+5.3  Streak display
+     - Render StreakDisplay in ModeSelector header
+     - Render StreakMilestone on streak milestones (3, 7, 14, 30)
+     - Fix calculateStreak() — count consecutive days properly
+
+5.4  Profile page (new route: /profile)
+     - Display name, avatar/emoji, join date
+     - Language + level badges
+     - Total study time, current streak, lessons completed
+     - Average scores per language
+     - SRS stats (cards learned, accuracy, due count)
+     - Sign out button
+
+5.5  Dashboard stats component
+     - Weekly study time chart (7-day bar)
+     - Lessons completed trend
+     - Accuracy over time
+
+     Deliverable: Progress persists across devices, visible profile.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ context/AppContext.tsx (boot sync)           │
+     │ utils/progress.ts (server merge logic)       │
+     │ pages/ProfilePage.tsx (new)                  │
+     │ components/DashboardStats.tsx (new)          │
+     │ components/StreakDisplay.tsx (render it)     │
+     │ App.tsx (add /profile route)                │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 6: CONTENT GENERATION (Days 35-42)
+Fill the 49 empty language/level combinations.
+═══════════════════════════════════════════════════════════════════════════════
+
+6.1  Lesson generation endpoint
+     - POST /api/lessons/generate
+       body: { language, level, lessonNumber, topic? }
+     - Uses generateLessonContent() from utils/lessonGenerator.ts
+     - Requires VITE_GEMINI_API_KEY server-side (add GEMINI_API_KEY env)
+     - Rate-limited (10/hour per IP)
+     - Validates against lesson schema before saving
+     - Saves to lessons table + returns the lesson
+
+6.2  Wire LessonPicker "Generate" button
+     - Replace alert('AI Generation endpoint required') with real fetch
+     - Show loading state during generation
+     - Refresh lesson list after generation
+
+6.3  Bulk generation script
+     - Fix generate-lessons.mjs to call the API (or generate locally)
+     - Pre-generate: A1.1 + A1.2 for all 5 languages (20 lessons)
+     - Seed into DB on deploy
+
+6.4  Lesson quality validation
+     - Schema validation before saving
+     - Minimum requirements: 10 vocab, 1 grammar, 3 exercises per lesson
+     - Reject empty/placeholder content
+
+     Deliverable: All 5 languages have lessons from A1 through B2.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ server/routes/lessons.js (add generate)      │
+     │ utils/lessonGenerator.ts (fix + harden)      │
+     │ components/LessonPicker.tsx (wire button)    │
+     │ deploy/env.production.example (GEMINI_API)   │
+     │ generate-lessons.mjs (fix imports)           │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 7: HARDENING & TESTING (Days 42-49)
+Make it production-ready.
+═══════════════════════════════════════════════════════════════════════════════
+
+7.1  Test coverage targets
+     - Component tests: every new exercise component
+     - Integration tests: chat flow, exercise flow, SRS flow
+     - Server tests: SRS API, lesson generation, auth middleware
+     - Target: 80+ tests covering all MVP features
+     - E2E: one happy-path test (login → lesson → exercise → complete)
+
+7.2  Error handling audit
+     - Every fetch has error boundary + user-facing message
+     - Reconnect logic for Socket.io (already exists, verify)
+     - AI API failure fallback (show error, don't crash)
+     - Network offline detection + retry
+
+7.3  Performance
+     - Code-split heavy routes (React.lazy for FreeModeApp, TutorSession)
+     - Virtualize long lesson lists
+     - Debounce chat input
+     - Image optimization (flags from icons8 — self-host or cache)
+
+7.4  Security review
+     - All API endpoints behind requireAuth
+     - Input validation on all POST bodies
+     - Rate limiting on generation endpoint
+     - XSS check on user-generated content (chat, annotations)
+     - CORS locked to klc.lat
+
+7.5  Mobile responsive audit
+     - Test all views at 375px, 768px, 1024px, 1440px
+     - Exercise components touch-friendly
+     - Chat input not hidden by mobile keyboard
+
+     Deliverable: 80+ tests, no known crashes, responsive, secure.
+
+     Files:
+     ┌──────────────────────────────────────────────┐
+     │ test/*.test.tsx (many new test files)        │
+     │ server/middleware/validate.js (new)          │
+     │ vite.config.ts (manual chunks)               │
+     │ All component files (responsive fixes)       │
+     └──────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+PHASE 8: POST-MVP (After launch — prioritized)
+═══════════════════════════════════════════════════════════════════════════════
+
+  8.1  Voice conversation
+       Pick ONE: Gemini Live (re-enable) vs LiveKit vs raw WebRTC
+       Recommendation: Gemini Live (code already written, just re-enable)
+       The other two can be deleted.
+
+  8.2  Peer challenges + leaderboard
+       - challenges table + Socket.io game rooms
+       - Weekly vocabulary battles
+       - Points/badges system
+
+  8.3  Teacher dashboard
+       - Roster with per-student progress (data exists in user_progress)
+       - Session history per class
+       - Assign lessons to students
+
+  8.4  Drag-drop interactive slates
+       - Extend exercise types from Phase 2
+
+  8.5  Pronunciation heatmaps
+       - Web Speech API for STT
+       - Word-level accuracy scoring
+
+  8.6  Email/password auth + password reset
+
+  8.7  Push notifications (SRS due reminders)
+
+--------------------------------------------------------------------------------
+PART 4: DEPENDENCY MAP — WHAT BLOCKS WHAT
+--------------------------------------------------------------------------------
+
+Phase 0 ──→ Phase 1 (need language selector + class board for chat context)
+Phase 1 ──→ Phase 4.4 (chat corrections feed SRS)
+Phase 0 ──→ Phase 2 (need lesson delivery before exercises render)
+Phase 2 ──→ Phase 3.4 (exercise responses need exercise components)
+Phase 2 ──→ Phase 4.4 (lesson complete feeds SRS)
+Phase 3 ──→ Phase 8.2 (polling infra reused for challenges)
+Phase 4 ──→ Phase 5.4 (profile shows SRS stats)
+Phase 5 ──→ nothing (can parallel with 3/4/6)
+Phase 6 ──→ nothing (can parallel with 1-5)
+Phase 7 ──→ everything (final gate before launch)
+
+Parallel tracks after Phase 0:
+  Track A: Phase 1 (AI Chat) → Phase 6 (Content)
+  Track B: Phase 2 (Exercises) → Phase 3 (Live Interactivity)
+  Track C: Phase 4 (SRS) → Phase 5 (Progress/Profiles)
+  Track D: Phase 7 (Hardening) — runs continuously
+
+--------------------------------------------------------------------------------
+PART 5: SUCCESS CRITERIA — MVP DEFINITION OF DONE
+--------------------------------------------------------------------------------
+
+A user can complete this journey without hitting a dead-end or broken feature:
+
+  1. Visit klc.lat → sign in with name
+  2. Choose "Structured Class" → pick German → A1.1 → Lesson 1
+  3. See lesson content on the board (not empty)
+  4. Complete fill-blank and multiple-choice exercises
+  5. Get a real score (not hardcoded 85)
+  6. See progress saved, streak displayed
+  7. Go to "Free Conversation" → pick any language → chat with AI tutor
+  8. Get a session summary with corrections
+  9. Review flashcards — cards scheduled by SRS, due queue works
+  10. Log out, log back in → progress restored from server
+  11. Tutor creates room → student joins → tutor polls "Got it?" →
+      students tap confidence → tutor sees live tally
+  12. Generate a new lesson for French A2 → it appears in the picker
+  13. All 21+ existing tests pass + 80+ new tests pass
+  14. Deployed at klc.lat with auto-SSL (already done)
+
+--------------------------------------------------------------------------------
+PART 6: TECHNICAL DEBT LEDGER
+--------------------------------------------------------------------------------
+
+Track these alongside feature work — fix when touched:
+
+  ID  │ Area           │ Issue                          │ Phase
+  ────┼────────────────┼────────────────────────────────┼──────
+  D-1 │ Architecture   │ AppContext still holds too     │ 1
+      │                │ many fields — split into        │
+      │                │ useChat, useClass, useBoard     │
+  D-2 │ Dead code      │ pages/Pages.tsx, AuthPage,     │ 0.8
+      │                │ BreakManagement, webrtc.ts,     │
+      │                │ useLiveKitSession               │
+  D-3 │ Mock data      │ useWebRTC returns null streams │ 8.1
+  D-4 │ Auth           │ Guest accounts bypass server   │ 5.1
+      │                │ (local-only fallback)           │
+  D-5 │ Schema         │ review_sessions.tutorName      │ 0.6
+      │                │ always undefined                │
+  D-6 │ i18n           │ classInstructions missing      │ 0.5
+      │                │ chinese/english                 │
+  D-7 │ Bundle         │ 1.36MB main chunk — needs      │ 7.3
+      │                │ code-splitting                  │
+  D-8 │ Config         │ 4 platform configs (Railway,   │ 0.8
+      │                │ Netlify, Heroku, Render) —     │
+      │                │ keep only Contabo/Caddy         │
+  D-9 │ Tests          │ Only 21 tests, no E2E          │ 7.1
+  D-10│ Content        │ 49/50 language-level combos    │ 6
+      │                │ empty                          │

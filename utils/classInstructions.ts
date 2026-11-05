@@ -5,7 +5,9 @@ import type { Lesson, LessonPhase, CEFRLevel } from '../types/lesson';
 const TUTOR_NAMES = {
     german: 'Klaus',
     french: 'Amélie',
-    spanish: 'Sofía'
+    spanish: 'Sofía',
+    chinese: 'Lín',
+    english: 'David'
 } as const;
 
 /**

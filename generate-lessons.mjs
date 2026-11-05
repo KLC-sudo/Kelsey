@@ -1,7 +1,7 @@
 // Script to generate Lessons 2-5 for German A1.1
 // Run with: node generate-lessons.mjs
 
-import { generateLesson } from './utils/lessonGenerator.ts';
+import { generateLessonContent } from './utils/lessonGenerator.ts';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -40,7 +40,7 @@ async function generateAllLessons() {
         console.log(`📝 Generating Lesson ${lessonConfig.lessonNumber}: ${lessonConfig.topic}...`);
 
         try {
-            const lesson = await generateLesson({
+            const lesson = await generateLessonContent({
                 language: 'german',
                 level: 'A1.1',
                 lessonNumber: lessonConfig.lessonNumber,

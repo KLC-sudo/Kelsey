@@ -7,7 +7,7 @@
  */
 
 import type { Lesson, VocabularyItem, GrammarConcept, Exercise, LessonPhase } from '../types/lesson';
-import type { BoardCard, CardType, CurriculumDeck } from '../types/board';
+import type { BoardCard, CardType, CurriculumDeck, ExerciseData } from '../types/board';
 import type { LanguageCode, CEFRLevel } from '../types/lesson';
 
 // ─────────────────────────────────────────────
@@ -251,4 +251,195 @@ export function getUnsentCards(deck: CurriculumDeck): BoardCard[] {
 
 export function getSentCards(deck: CurriculumDeck): BoardCard[] {
   return deck.cards.filter(c => deck.sentCardIds.includes(c.id));
+}
+
+// ─────────────────────────────────────────────
+// Interactive Exercise Generation (Phase 2)
+// Derives structured exercises from lesson vocabulary & grammar
+// ─────────────────────────────────────────────
+
+/**
+ * Build multiple-choice vocabulary cards from lesson vocabulary.
+ * Shuffles distractors from other vocab items.
+ */
+export function buildVocabQuizCards(
+  lesson: Lesson,
+  meta: { sessionId: string; lessonId: string; language: LanguageCode; level: CEFRLevel },
+  count: number = 5
+): BoardCard[] {
+  const vocab = lesson.vocabulary;
+  if (vocab.length < 4) return [];
+
+  const shuffled = [...vocab].sort(() => Math.random() - 0.5).slice(0, count);
+
+  return shuffled.map((item, i) => {
+    // Pick 3 random distractors (not the correct answer)
+    const distractors = vocab
+      .filter(v => v.target !== item.target)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3)
+      .map(v => v.translation);
+
+    const options = [...distractors, item.translation].sort(() => Math.random() - 0.5);
+    const correctIndex = options.indexOf(item.translation);
+
+    return {
+      id: `${meta.lessonId}-quiz-vocab-${i}`,
+      type: 'exercise' as CardType,
+      phase: 'assessment' as LessonPhase,
+      title: `What does "${item.target}" mean?`,
+      body: `Select the correct translation for: ${item.target}`,
+      exerciseData: {
+        kind: 'multiple-choice' as const,
+        question: `What does "${item.target}" mean?`,
+        options,
+        correctIndex,
+        hint: item.example ? `Hint: "${item.example}"` : item.partOfSpeech,
+        revealAfterAttempts: 2,
+      },
+      suggestedDuration: 30,
+      revealState: 'active' as const,
+      revealedAt: 0,
+      flagged: false,
+      sourceId: item.target,
+      ...meta,
+    };
+  });
+}
+
+/**
+ * Build fill-blank cards from grammar examples.
+ * Picks a word from the example to blank out.
+ */
+export function buildGrammarFillBlankCards(
+  lesson: Lesson,
+  meta: { sessionId: string; lessonId: string; language: LanguageCode; level: CEFRLevel },
+  count: number = 3
+): BoardCard[] {
+  const examples = lesson.grammarFocus
+    .flatMap(g => g.examples)
+    .filter(e => e && e.split(/\s+/).length >= 3);
+
+  if (examples.length === 0) return [];
+
+  const shuffled = [...examples].sort(() => Math.random() - 0.5).slice(0, count);
+
+  return shuffled.map((example, i) => {
+    const words = example.split(/\s+/);
+    // Pick a content word (not first or last, length > 2) to blank
+    let blankIndex = -1;
+    for (let j = 1; j < words.length - 1; j++) {
+      if (words[j].replace(/[.,!?]/g, '').length > 2) {
+        blankIndex = j;
+        break;
+      }
+    }
+    if (blankIndex === -1) blankIndex = Math.min(1, words.length - 1);
+
+    const originalWord = words[blankIndex].replace(/[.,!?]/g, '');
+    const blanked = words.map((w, j) => (j === blankIndex ? '____' : w)).join(' ');
+
+    return {
+      id: `${meta.lessonId}-quiz-blank-${i}`,
+      type: 'exercise' as CardType,
+      phase: 'practice' as LessonPhase,
+      title: 'Fill in the blank',
+      body: blanked,
+      exerciseData: {
+        kind: 'fill-blank' as const,
+        question: `Fill in the missing word: "${blanked}"`,
+        acceptedAnswers: [originalWord.toLowerCase()],
+        hint: `The word has ${originalWord.length} letters and starts with "${originalWord[0]}"`,
+        revealAfterAttempts: 3,
+      },
+      suggestedDuration: 45,
+      revealState: 'active' as const,
+      revealedAt: 0,
+      flagged: false,
+      ...meta,
+    };
+  });
+}
+
+/**
+ * Build text-answer cards from vocabulary examples.
+ * Student types the translation.
+ */
+export function buildTranslationCards(
+  lesson: Lesson,
+  meta: { sessionId: string; lessonId: string; language: LanguageCode; level: CEFRLevel },
+  count: number = 3
+): BoardCard[] {
+  const withExamples = lesson.vocabulary.filter(v => v.example && v.exampleTranslation);
+  if (withExamples.length === 0) return [];
+
+  const shuffled = [...withExamples].sort(() => Math.random() - 0.5).slice(0, count);
+
+  return shuffled.map((item, i) => ({
+    id: `${meta.lessonId}-quiz-trans-${i}`,
+    type: 'exercise' as CardType,
+    phase: 'assessment' as LessonPhase,
+    title: 'Translate',
+    body: `Translate: "${item.example}"`,
+    exerciseData: {
+      kind: 'text-answer' as const,
+      question: `Translate this sentence: "${item.example}"`,
+      acceptedAnswers: [
+        (item.exampleTranslation ?? '').toLowerCase().trim(),
+      ],
+      hint: `Key word: ${item.target} (${item.translation})`,
+      revealAfterAttempts: 2,
+    },
+    suggestedDuration: 60,
+    revealState: 'active' as const,
+    revealedAt: 0,
+    flagged: false,
+    sourceId: item.target,
+    ...meta,
+  }));
+}
+
+/**
+ * Validate an exercise answer.
+ * Returns { correct, feedback } for immediate display.
+ */
+export function validateExerciseAnswer(
+  exerciseData: ExerciseData,
+  answer: string
+): { correct: boolean; feedback: string } {
+  const trimmed = answer.trim();
+
+  if (!trimmed) {
+    return { correct: false, feedback: 'Please enter an answer.' };
+  }
+
+  if (exerciseData.kind === 'multiple-choice') {
+    // Multiple choice is handled by option click, but support string too
+    const idx = exerciseData.options?.indexOf(trimmed);
+    if (idx !== undefined && idx === exerciseData.correctIndex) {
+      return { correct: true, feedback: '✅ Correct!' };
+    }
+    return { correct: false, feedback: '❌ Not quite. Try again.' };
+  }
+
+  // fill-blank and text-answer: case-insensitive comparison
+  const normalized = trimmed.toLowerCase().replace(/[.!?]+$/, '');
+  const accepted = (exerciseData.acceptedAnswers ?? []).map(a =>
+    a.toLowerCase().replace(/[.!?]+$/, '').trim()
+  );
+
+  if (accepted.includes(normalized)) {
+    return { correct: true, feedback: '✅ Correct!' };
+  }
+
+  // Partial match for translations (check if core words overlap)
+  if (exerciseData.kind === 'text-answer') {
+    const answerWords = normalized.split(/\s+/).filter(w => w.length > 2);
+    const matched = answerWords.some(w => accepted.some(a => a.includes(w)));
+    if (matched && answerWords.length >= 2) {
+      return { correct: true, feedback: '✅ Correct!' };
+    }
+  }
+
+  return { correct: false, feedback: '❌ Not quite. Try again.' };
 }

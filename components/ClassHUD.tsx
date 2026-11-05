@@ -1,6 +1,6 @@
 // Class HUD - Minimal sticky header for class sessions with phase navigation
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Lesson, LessonPhase, ClassSession } from '../types/lesson';
 
 interface ClassHUDProps {
@@ -9,7 +9,8 @@ interface ClassHUDProps {
     currentPhase: LessonPhase;
     elapsedTime: number; // seconds
     onNextPhase?: () => void;
-    onPreviousPhase?: () => void; // NEW: callback for going back
+    onPreviousPhase?: () => void;
+    onQuickVocab?: (term: string, translation: string) => void; // Phase 3.2
 }
 
 export const ClassHUD: React.FC<ClassHUDProps> = ({
@@ -18,8 +19,21 @@ export const ClassHUD: React.FC<ClassHUDProps> = ({
     currentPhase,
     elapsedTime,
     onNextPhase,
-    onPreviousPhase
+    onPreviousPhase,
+    onQuickVocab
 }) => {
+    const [vocabTerm, setVocabTerm] = useState('');
+    const [vocabTrans, setVocabTrans] = useState('');
+    const [showVocabInput, setShowVocabInput] = useState(false);
+
+    const handleQuickVocab = () => {
+        if (vocabTerm.trim() && vocabTrans.trim() && onQuickVocab) {
+            onQuickVocab(vocabTerm.trim(), vocabTrans.trim());
+            setVocabTerm('');
+            setVocabTrans('');
+            setShowVocabInput(false);
+        }
+    };
     const phaseIndex = lesson.phases.findIndex(p => p.phase === currentPhase);
     const totalPhases = lesson.phases.length;
     const isLastPhase = phaseIndex === totalPhases - 1;
@@ -113,6 +127,52 @@ export const ClassHUD: React.FC<ClassHUDProps> = ({
                     style={{ width: `${((phaseIndex + 1) / totalPhases) * 100}%` }}
                 />
             </div>
+
+            {/* Quick Vocabulary Drop-In (Phase 3.2) */}
+            {onQuickVocab && (
+                <div className="mb-2">
+                    {showVocabInput ? (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={vocabTerm}
+                                onChange={e => setVocabTerm(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleQuickVocab()}
+                                placeholder="Word / phrase"
+                                className="w-32 bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:border-blue-400 focus:outline-none"
+                                autoFocus
+                            />
+                            <input
+                                type="text"
+                                value={vocabTrans}
+                                onChange={e => setVocabTrans(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleQuickVocab()}
+                                placeholder="Translation"
+                                className="w-32 bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:border-blue-400 focus:outline-none"
+                            />
+                            <button
+                                onClick={handleQuickVocab}
+                                className="bg-green-600 hover:bg-green-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition-colors"
+                            >
+                                📤 Push
+                            </button>
+                            <button
+                                onClick={() => setShowVocabInput(false)}
+                                className="text-gray-400 hover:text-white text-xs"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setShowVocabInput(true)}
+                            className="text-[10px] text-gray-500 hover:text-blue-400 transition-colors flex items-center gap-1"
+                        >
+                            ⚡ Quick vocab drop-in
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Bottom Row: Phase timeline + Current objectives */}
             <div className="flex items-start justify-between gap-4">

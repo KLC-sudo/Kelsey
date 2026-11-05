@@ -15,6 +15,7 @@ import type { AppMode } from './components/ModeSelector';
 import { FreeModeApp } from './pages/FreeModeApp';
 import { TutorSessionPage } from './pages/TutorSessionPage';
 import { StudentSessionPage } from './pages/StudentSessionPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 function AuthPage() {
   const { dispatch } = useAppContext();
@@ -135,6 +136,7 @@ function AppRoutes() {
       <Route path="/student-session" element={<StudentSessionPage />} />
       <Route path="/conversation" element={<FreeModeApp />} />
       <Route path="/review-history" element={<ReviewHistoryPage />} />
+      <Route path="/profile" element={<ProfilePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

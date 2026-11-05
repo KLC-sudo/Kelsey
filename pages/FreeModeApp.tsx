@@ -13,16 +13,13 @@ import { ReconnectionIndicator } from '../components/ReconnectionIndicator';
 import { ClassHUD } from '../components/ClassHUD';
 import { LessonComplete } from '../components/LessonComplete';
 import { LiveBoard } from '../components/LiveBoard';
-import { useWebRTC } from '../hooks/useWebRTC';
-import { StateSyncManager } from '../utils/stateSync';
-import type { StudentSignal } from '../utils/stateSync';
 import { loadAccount } from '../utils/account';
 import { getUserProgress, initializeProgress, completeLesson, addStudyTime } from '../utils/progress';
 import { createClassSession } from '../utils/sessionManager';
 import { getClassModeSystemInstruction } from '../utils/classInstructions';
+import { buildDeckFromLesson, buildVocabQuizCards, buildGrammarFillBlankCards, buildTranslationCards } from '../utils/curriculumDeck';
+import { extractCardsForSRS, importCards } from '../utils/srsClient';
 import type { BoardCard } from '../types/board';
-import { LiveKitRoom } from '@livekit/components-react';
-import '@livekit/components-styles';
 
 const languageConfig = {
     german: { name: 'German', tutor: 'Klaus', flag: 'https://img.icons8.com/color/48/germany.png', startPhrase: 'Hallo! Ich bin Klaus. Wie heißt du?' },
@@ -74,15 +71,35 @@ export function FreeModeApp() {
         }
     }, [appMode, currentLesson, classSession]);
 
-    // Session timer
+    // Load lesson content onto the board for class mode (0.2)
     useEffect(() => {
-        if (appMode === 'class' && classSession && isRecording) {
+        if (appMode === 'class' && currentLesson && state.boardCards.length === 0) {
+            const sessionId = `session-${Date.now()}`;
+            const meta = { sessionId, lessonId: currentLesson.id, language: currentLesson.language, level: currentLesson.level };
+            const deck = buildDeckFromLesson(currentLesson, sessionId);
+            const introCards = deck.cards.filter(c => c.phase === 'introduction');
+
+            // Also generate interactive exercise cards (Phase 2)
+            const quizCards = buildVocabQuizCards(currentLesson, meta, 5);
+            const blankCards = buildGrammarFillBlankCards(currentLesson, meta, 3);
+            const transCards = buildTranslationCards(currentLesson, meta, 3);
+            const allCards = [...introCards, ...quizCards, ...blankCards, ...transCards];
+
+            allCards.forEach(card => {
+                dispatch({ type: 'APPEND_BOARD_CARD', card: { ...card, revealedAt: Date.now(), revealState: 'active' } });
+            });
+        }
+    }, [appMode, currentLesson]);
+
+    // Session timer — runs whenever class mode is active (0.3)
+    useEffect(() => {
+        if (appMode === 'class' && classSession) {
             const interval = setInterval(() => {
                 dispatch({ type: 'SET_SESSION_ELAPSED_TIME', time: state.sessionElapsedTime + 1 });
             }, 1000);
             return () => clearInterval(interval);
         }
-    }, [appMode, classSession, isRecording]);
+    }, [appMode, classSession]);
 
     const drawVisualizer = useCallback(() => {
         if (!analyserRef.current || !canvasRef.current) return;
@@ -525,14 +542,53 @@ export function FreeModeApp() {
             if (!progress) {
                 progress = initializeProgress(currentLesson.language as any, instructionLanguage || 'english');
             }
-            const assessment = { lessonId: currentLesson.id, timestamp: Date.now(), score: 85, exerciseAttempts: [], strengths: ['Completed all phases'], weaknesses: [], recommendedReview: [] };
+
+            // Calculate real score from exercise results (Phase 2)
+            const results = Object.values(state.exerciseResults);
+            const score = results.length > 0
+                ? Math.round((results.filter(Boolean).length / results.length) * 100)
+                : 70; // baseline if no exercises were attempted
+
+            const assessment = {
+                lessonId: currentLesson.id,
+                timestamp: Date.now(),
+                score,
+                exerciseAttempts: [],
+                strengths: results.filter(Boolean).length > 0 ? [`Correctly answered ${results.filter(Boolean).length}/${results.length} exercises`] : ['Completed all phases'],
+                weaknesses: results.filter(r => !r).length > 0 ? [`Missed ${results.filter(r => !r).length}/${results.length} exercises`] : [],
+                recommendedReview: []
+            };
             completeLesson(currentLesson.id, assessment);
-            addStudyTime(Math.floor(sessionElapsedTime / 60));
-            dispatch({ type: 'SET_COMPLETION_SCORE', score: 85 });
+            addStudyTime(Math.max(1, Math.floor(sessionElapsedTime / 60)));
+
+            // Feed vocabulary into SRS for spaced repetition (Phase 4)
+            const srsCards = extractCardsForSRS(state.boardCards);
+            if (srsCards.length > 0) {
+                importCards(srsCards).then(n => console.log(`📚 Imported ${n} cards to SRS`)).catch(() => {});
+            }
+
+            dispatch({ type: 'SET_COMPLETION_SCORE', score });
             dispatch({ type: 'SET_SHOW_COMPLETION', show: true });
         } else {
             const nextPhase = currentLesson.phases[currentIndex + 1].phase;
             dispatch({ type: 'SET_CURRENT_PHASE', phase: nextPhase });
+            // Load the new phase's cards onto the board (0.2)
+            const sessionId = `session-${Date.now()}`;
+            const meta = { sessionId, lessonId: currentLesson.id, language: currentLesson.language, level: currentLesson.level };
+            const deck = buildDeckFromLesson(currentLesson, sessionId);
+            const phaseCards = deck.cards.filter(c => c.phase === nextPhase);
+
+            // Add interactive exercises for assessment/practice phases (Phase 2)
+            let exerciseCards = [];
+            if (nextPhase === 'assessment') {
+                exerciseCards = [...buildVocabQuizCards(currentLesson, meta, 5), ...buildTranslationCards(currentLesson, meta, 3)];
+            } else if (nextPhase === 'practice') {
+                exerciseCards = buildGrammarFillBlankCards(currentLesson, meta, 3);
+            }
+
+            dispatch({ type: 'SET_BOARD_CARDS', cards: [...phaseCards, ...exerciseCards].map(c => ({ ...c, revealedAt: Date.now(), revealState: 'active' as const })) });
+            dispatch({ type: 'RESET_EXERCISE_RESULTS' });
+            console.log(`✅ Advanced to phase: ${nextPhase}`);
         }
     }, [currentLesson, currentPhase, sessionElapsedTime, instructionLanguage]);
 
@@ -540,7 +596,21 @@ export function FreeModeApp() {
         if (!currentLesson) return;
         const currentIndex = currentLesson.phases.findIndex(p => p.phase === currentPhase);
         if (currentIndex > 0) {
-            dispatch({ type: 'SET_CURRENT_PHASE', phase: currentLesson.phases[currentIndex - 1].phase });
+            const prevPhase = currentLesson.phases[currentIndex - 1].phase;
+            dispatch({ type: 'SET_CURRENT_PHASE', phase: prevPhase });
+            // Load the previous phase's cards onto the board (0.2)
+            const sessionId = `session-${Date.now()}`;
+            const meta = { sessionId, lessonId: currentLesson.id, language: currentLesson.language, level: currentLesson.level };
+            const deck = buildDeckFromLesson(currentLesson, sessionId);
+            const phaseCards = deck.cards.filter(c => c.phase === prevPhase);
+            let exerciseCards = [];
+            if (prevPhase === 'assessment') {
+                exerciseCards = [...buildVocabQuizCards(currentLesson, meta, 5), ...buildTranslationCards(currentLesson, meta, 3)];
+            } else if (prevPhase === 'practice') {
+                exerciseCards = buildGrammarFillBlankCards(currentLesson, meta, 3);
+            }
+            dispatch({ type: 'SET_BOARD_CARDS', cards: [...phaseCards, ...exerciseCards].map(c => ({ ...c, revealedAt: Date.now(), revealState: 'active' as const })) });
+            dispatch({ type: 'RESET_EXERCISE_RESULTS' });
         }
     }, [currentLesson, currentPhase]);
 
@@ -627,11 +697,42 @@ export function FreeModeApp() {
 
                 <div className="flex-grow flex flex-col w-full h-full min-h-0">
                     {appMode === 'class' && currentLesson && classSession && (
-                        <ClassHUD lesson={currentLesson} session={classSession} currentPhase={currentPhase} elapsedTime={sessionElapsedTime} onNextPhase={handleNextPhase} onPreviousPhase={handlePreviousPhase} />
+                        <ClassHUD
+                            lesson={currentLesson}
+                            session={classSession}
+                            currentPhase={currentPhase}
+                            elapsedTime={sessionElapsedTime}
+                            onNextPhase={handleNextPhase}
+                            onPreviousPhase={handlePreviousPhase}
+                            onQuickVocab={(term, translation) => {
+                                const card: BoardCard = {
+                                    id: `quick-vocab-${Date.now()}`,
+                                    type: 'vocabulary',
+                                    phase: currentPhase,
+                                    title: term,
+                                    body: translation,
+                                    revealState: 'active',
+                                    revealedAt: Date.now(),
+                                    flagged: false,
+                                    sessionId: classSession?.id ?? 'session',
+                                    lessonId: currentLesson.id,
+                                    language: currentLesson.language,
+                                    level: currentLesson.level,
+                                };
+                                dispatch({ type: 'APPEND_BOARD_CARD', card });
+                            }}
+                        />
                     )}
 
                     {appMode === 'class' && currentLesson && classSession ? (
-                        <LiveBoard cards={state.boardCards} onFlagCard={() => {}} onUnflagCard={() => {}} />
+                        <LiveBoard
+                            cards={state.boardCards}
+                            onFlagCard={() => {}}
+                            onUnflagCard={() => {}}
+                            onExerciseResult={(cardId, correct) => {
+                                dispatch({ type: 'SET_EXERCISE_RESULT', cardId, correct });
+                            }}
+                        />
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-gray-500">
                             <p>Select a lesson to begin</p>
@@ -644,7 +745,25 @@ export function FreeModeApp() {
                     </div>
 
                     <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shrink-0">
-                        {!isRecording && (
+                        {/* Free mode: language selector (0.1) */}
+                        {appMode === 'free' && !targetLanguage && (
+                            <div className="mb-6">
+                                <label className="block text-sm text-gray-400 mb-3 text-center">Choose a language to start</label>
+                                <div className="grid grid-cols-5 gap-3 max-w-lg mx-auto">
+                                    {(Object.keys(languageConfig) as TargetLanguage[]).map(lang => (
+                                        <button
+                                            key={lang}
+                                            onClick={() => dispatch({ type: 'SET_TARGET_LANGUAGE', lang })}
+                                            className="flex flex-col items-center gap-1 p-3 bg-gray-700 hover:bg-blue-600 rounded-xl transition-all hover:-translate-y-0.5"
+                                        >
+                                            <img src={languageConfig[lang].flag} alt="" className="w-8 h-8" />
+                                            <span className="text-[10px] font-semibold">{languageConfig[lang].name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {!isRecording && targetLanguage && (
                             <div className="flex flex-col gap-4 max-w-sm mx-auto mb-6">
                                 <select value={difficulty || ''} onChange={(e) => dispatch({ type: 'SET_DIFFICULTY', d: e.target.value as Difficulty })} className="bg-gray-700 p-3 rounded-lg border border-gray-600 text-white">
                                     <option value="" disabled>Select Proficiency Level</option>

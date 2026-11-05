@@ -12,6 +12,8 @@ import { initDB, getDB, saveDB } from './db.js';
 import userRoutes from './routes/users.js';
 import lessonRoutes from './routes/lessons.js';
 import livekitRoutes from './routes/livekit.js';
+import srsRoutes from './routes/srs.js';
+import generateRoutes from './routes/generate.js';
 
 dotenv.config();
 
@@ -33,7 +35,9 @@ app.use(express.json());
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/lessons', lessonRoutes);
+app.use('/api/lessons', generateRoutes); // POST /api/lessons/generate
 app.use('/api/livekit', livekitRoutes);
+app.use('/api/users', srsRoutes); // mounted under /api/users/:id/srs/...
 
 // Health check endpoint
 app.get('/health', (req, res) => {

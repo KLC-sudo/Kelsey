@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useRef, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import type { TranscriptEntry, SessionSummary, PaceUpdate } from '../types';
 import type { Lesson, ClassSession, LessonPhase } from '../types/lesson';
 import type { BoardCard, CurriculumDeck } from '../types/board';
@@ -58,6 +58,14 @@ interface AppState {
   curriculumDeck: CurriculumDeck | null;
   lastSentCardId: string | null;
   flaggedCards: Map<string, string | undefined>;
+
+  // Exercise scoring (Phase 2)
+  exerciseResults: Record<string, boolean>; // cardId -> correct
+
+  // Confidence / polling (Phase 3)
+  confidenceCounts: { 'got-it': number; 'too-fast': number; 'need-example': number };
+  activePoll: { pollId: string; question: string; options: string[]; durationSeconds: number } | null;
+  pollResults: Record<number, number>; // choiceIndex -> count
 }
 
 type AppAction =
@@ -104,6 +112,13 @@ type AppAction =
   | { type: 'SET_FLAGGED_CARDS'; cards: Map<string, string | undefined> }
   | { type: 'SET_FLAGGED_CARD'; cardId: string; annotation?: string }
   | { type: 'REMOVE_FLAGGED_CARD'; cardId: string }
+  | { type: 'SET_EXERCISE_RESULT'; cardId: string; correct: boolean }
+  | { type: 'RESET_EXERCISE_RESULTS' }
+  | { type: 'INCREMENT_CONFIDENCE'; level: 'got-it' | 'too-fast' | 'need-example' }
+  | { type: 'RESET_CONFIDENCE' }
+  | { type: 'SET_ACTIVE_POLL'; poll: { pollId: string; question: string; options: string[]; durationSeconds: number } | null }
+  | { type: 'SET_POLL_VOTE'; choiceIndex: number }
+  | { type: 'RESET_POLL' }
   | { type: 'RESET_FREE_MODE' }
   | { type: 'RESET_CLASS_MODE' }
   | { type: 'RESET_BOARD' }
@@ -145,6 +160,10 @@ const initialState: AppState = {
   curriculumDeck: null,
   lastSentCardId: null,
   flaggedCards: new Map(),
+  exerciseResults: {},
+  confidenceCounts: { 'got-it': 0, 'too-fast': 0, 'need-example': 0 },
+  activePoll: null,
+  pollResults: {},
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -203,6 +222,23 @@ function appReducer(state: AppState, action: AppAction): AppState {
       m.delete(action.cardId);
       return { ...state, flaggedCards: m };
     }
+    case 'SET_EXERCISE_RESULT':
+      return { ...state, exerciseResults: { ...state.exerciseResults, [action.cardId]: action.correct } };
+    case 'RESET_EXERCISE_RESULTS':
+      return { ...state, exerciseResults: {} };
+    case 'INCREMENT_CONFIDENCE':
+      return {
+        ...state,
+        confidenceCounts: { ...state.confidenceCounts, [action.level]: state.confidenceCounts[action.level] + 1 }
+      };
+    case 'RESET_CONFIDENCE':
+      return { ...state, confidenceCounts: { 'got-it': 0, 'too-fast': 0, 'need-example': 0 } };
+    case 'SET_ACTIVE_POLL':
+      return { ...state, activePoll: action.poll, pollResults: {} };
+    case 'SET_POLL_VOTE':
+      return { ...state, pollResults: { ...state.pollResults, [action.choiceIndex]: (state.pollResults[action.choiceIndex] || 0) + 1 } };
+    case 'RESET_POLL':
+      return { ...state, activePoll: null, pollResults: {} };
     case 'RESET_FREE_MODE': return {
       ...state,
       targetLanguage: null,
@@ -225,6 +261,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       currentPhase: 'introduction',
       sessionElapsedTime: 0,
       showCompletion: false,
+      exerciseResults: {},
     };
     case 'RESET_BOARD': return {
       ...state,
@@ -255,6 +292,19 @@ export function useAppContext() {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
+
+  // Sync progress from server on boot (Phase 5)
+  useEffect(() => {
+    const sync = async () => {
+      try {
+        const { syncProgressFromServer } = await import('../utils/progress');
+        await syncProgressFromServer();
+      } catch (e) {
+        console.warn('Boot sync failed:', e);
+      }
+    };
+    sync();
+  }, []);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

@@ -1,13 +1,20 @@
 // Progress tracking utilities using LocalStorage
 
 import { UserProgress, LessonAssessment, SessionState } from '../types/lesson';
-import { loadAccount, getAuthState } from './account';
-import { updateStreak } from './streakTracking';
+import { loadAccount, getAuthState, getToken } from './account';
+import { updateStreak, getStreakData } from './streakTracking';
 
 const STORAGE_KEYS = {
     PROGRESS: 'languageTutor_userProgress',
     SESSION_STATE: 'languageTutor_sessionState',
 } as const;
+
+function getAuthHeaders(): Record<string, string> {
+    const token = getToken();
+    return token
+        ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+        : { 'Content-Type': 'application/json' };
+}
 
 /**
  * Parse a lesson ID like "german-A1.1-lesson-01" into { language, level, lessonNumber }
@@ -46,10 +53,7 @@ export function saveUserProgress(progress: UserProgress): void {
         if (account && !getAuthState().isGuest) {
             fetch(`/api/users/${account.id}/progress`, {
                 method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${account.id}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     language: progress.language,
                     level: progress.currentLevel,
@@ -71,7 +75,7 @@ export async function syncProgressFromServer(): Promise<void> {
     if (account && !getAuthState().isGuest) {
         try {
             const res = await fetch(`/api/users/${account.id}/progress`, {
-                headers: { 'Authorization': `Bearer ${account.id}` }
+                headers: getAuthHeaders()
             });
             if (res.ok) {
                 const data = await res.json();
@@ -257,19 +261,15 @@ export function getProgressStats() {
 }
 
 /**
- * Calculate study streak (days)
+ * Calculate study streak — uses the real streak tracking data
  */
 function calculateStreak(progress: UserProgress): number {
+    try {
+        const streakData = getStreakData();
+        if (streakData.currentStreak > 0) return streakData.currentStreak;
+    } catch { /* fall through */ }
+
     if (!progress.lastStudied) return 0;
-
-    const now = Date.now();
-    const lastStudied = progress.lastStudied;
-    const daysSince = Math.floor((now - lastStudied) / (1000 * 60 * 60 * 24));
-
-    // If studied today or yesterday, streak continues
-    if (daysSince <= 1) {
-        return 1;
-    }
-
-    return 0;
+    const daysSince = Math.floor((Date.now() - progress.lastStudied) / (1000 * 60 * 60 * 24));
+    return daysSince <= 1 ? 1 : 0;
 }

@@ -33,6 +33,27 @@ export interface StudentAnnotation {
 }
 
 // ─────────────────────────────────────────────
+// Interactive Exercise Data (Phase 2)
+// ─────────────────────────────────────────────
+
+export type ExerciseKind = 'multiple-choice' | 'fill-blank' | 'text-answer';
+
+export interface ExerciseData {
+  kind: ExerciseKind;
+  question: string;
+  /** For multiple-choice: shuffled option strings */
+  options?: string[];
+  /** For multiple-choice: index into options[] */
+  correctIndex?: number;
+  /** For fill-blank/text: acceptable answers (case-insensitive, trimmed) */
+  acceptedAnswers?: string[];
+  /** Progressive hint shown after wrong attempt */
+  hint?: string;
+  /** Show the correct answer after N wrong attempts */
+  revealAfterAttempts?: number;
+}
+
+// ─────────────────────────────────────────────
 // Board Card — the atomic unit of content
 // ─────────────────────────────────────────────
 
@@ -50,6 +71,9 @@ export interface BoardCard {
   // ── Tutor-only metadata (never transmitted via stateSync) ──
   teachingNote?: string;       // private tip for the tutor
   suggestedDuration?: number;  // recommended seconds on this card
+
+  // ── Interactive exercise data (Phase 2) ──
+  exerciseData?: ExerciseData;
 
   // ── Board state ──
   revealState: CardRevealState;

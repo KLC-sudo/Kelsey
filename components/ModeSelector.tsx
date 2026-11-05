@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { UserAccount } from '../types/account';
+import { fetchSRSStats } from '../utils/srsClient';
+import { StreakDisplay, getStreakData, type StreakData } from '../utils/streakTracking';
 
 export type AppMode = 'free' | 'class' | 'human-tutor';
 
@@ -11,6 +14,15 @@ interface ModeSelectorProps {
 }
 
 export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelect, onReviewHistory, onSignOut }) => {
+    const navigate = useNavigate();
+    const [srsStats, setSrsStats] = useState({ total: 0, dueToday: 0, learned: 0 });
+    const [streak, setStreak] = useState<StreakData | null>(null);
+
+    useEffect(() => {
+        fetchSRSStats().then(setSrsStats).catch(() => {});
+        setStreak(getStreakData());
+    }, []);
+
     return (
         <div className="min-h-screen bg-gray-950 flex flex-col">
             {/* Header */}
@@ -18,12 +30,24 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({ account, onModeSelec
                 <div className="flex items-center gap-3">
                     <span className="text-2xl">🌍</span>
                     <span className="text-white font-bold text-lg">Kelsey</span>
+                    {streak && streak.currentStreak > 0 && (
+                        <StreakDisplay streak={streak} compact />
+                    )}
                 </div>
                 <div className="flex items-center gap-4">
-                    {account && (
-                        <span className="text-gray-400 text-sm">
-                            {account.displayName}
+                    {srsStats.dueToday > 0 && (
+                        <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-1 rounded-full font-semibold animate-pulse">
+                            📅 {srsStats.dueToday} card{srsStats.dueToday > 1 ? 's' : ''} due
                         </span>
+                    )}
+                    {account && (
+                        <button
+                            onClick={() => navigate('/profile')}
+                            className="text-gray-400 hover:text-blue-400 text-sm transition-colors"
+                            title="View profile"
+                        >
+                            👤 {account.displayName}
+                        </button>
                     )}
                     <button
                         onClick={onSignOut}

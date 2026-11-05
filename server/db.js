@@ -96,6 +96,25 @@ export async function initDB() {
         )
     `);
 
+    rawDB.run(`
+        CREATE TABLE IF NOT EXISTS review_cards (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            card_data TEXT NOT NULL,
+            ease_factor REAL DEFAULT 2.5,
+            interval_days INTEGER DEFAULT 0,
+            repetitions INTEGER DEFAULT 0,
+            next_review_at INTEGER NOT NULL,
+            last_reviewed_at INTEGER,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    `);
+
+    rawDB.run(`
+        CREATE INDEX IF NOT EXISTS idx_review_cards_user_due
+        ON review_cards(user_id, next_review_at)
+    `);
+
     saveDB();
     console.log('✅ Database initialized at', dbPath);
 }

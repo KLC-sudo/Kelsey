@@ -8,6 +8,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { BoardCard, StudentAnnotation } from '../types/board';
 import { FlashcardReview } from './FlashcardReview';
+import { ExerciseInput } from './ExerciseInput';
 import { quickExportNotes } from '../utils/pdfExport';
 
 interface LiveBoardProps {
@@ -15,6 +16,7 @@ interface LiveBoardProps {
   tutorName?: string;
   onFlagCard: (cardId: string, annotationText?: string) => void;
   onUnflagCard: (cardId: string) => void;
+  onExerciseResult?: (cardId: string, correct: boolean) => void;
 }
 
 const CARD_TYPE_CONFIG = {
@@ -44,7 +46,8 @@ const BoardCardItem: React.FC<{
   onFlag: (cardId: string, text?: string) => void;
   onUnflag: (cardId: string) => void;
   isNew: boolean;
-}> = ({ card, onFlag, onUnflag, isNew }) => {
+  onExerciseResult?: (cardId: string, correct: boolean) => void;
+}> = ({ card, onFlag, onUnflag, isNew, onExerciseResult }) => {
   const [showAnnotationInput, setShowAnnotationInput] = useState(false);
   const [annotationDraft, setAnnotationDraft] = useState(card.studentAnnotation?.text ?? '');
   const cfg = CARD_TYPE_CONFIG[card.type];
@@ -96,6 +99,15 @@ const BoardCardItem: React.FC<{
             <div className="text-gray-400 text-[10px] sm:text-xs">— {card.exampleTranslation}</div>
           )}
         </div>
+      )}
+
+      {/* Interactive exercise input (Phase 2) */}
+      {card.exerciseData && (
+        <ExerciseInput
+          exerciseData={card.exerciseData}
+          cardId={card.id}
+          onResult={onExerciseResult}
+        />
       )}
 
       {/* Student annotation (if already set) */}
@@ -178,6 +190,7 @@ export const LiveBoard: React.FC<LiveBoardProps> = ({
   tutorName,
   onFlagCard,
   onUnflagCard,
+  onExerciseResult,
 }) => {
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [newCardIds, setNewCardIds] = useState<Set<string>>(new Set());
@@ -269,6 +282,7 @@ export const LiveBoard: React.FC<LiveBoardProps> = ({
                 onFlag={onFlagCard}
                 onUnflag={onUnflagCard}
                 isNew={newCardIds.has(card.id)}
+                onExerciseResult={onExerciseResult}
               />
             ))
           )}

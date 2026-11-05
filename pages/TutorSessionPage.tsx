@@ -5,6 +5,7 @@ import { LiveBoard } from '../components/LiveBoard';
 import { TutorDeckPanel } from '../components/TutorDeckPanel';
 import { RoomCodeDisplay } from '../components/RoomCodeDisplay';
 import { StudentRoster } from '../components/StudentRoster';
+import { TutorConfidenceTally } from '../components/TutorConfidenceTally';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { StateSyncManager } from '../utils/stateSync';
 import { buildReviewSession, saveSessionToHistory } from '../utils/reviewHistory';
@@ -73,6 +74,11 @@ export function TutorSessionPage() {
                     dispatch({ type: 'UPDATE_BOARD_CARD', cardId: signal.cardId, updates: { flagged: false } });
                 }
             });
+            stateSync.onStudentSignal('STUDENT_CONFIDENCE', (signal) => {
+                if (signal.type === 'STUDENT_CONFIDENCE') {
+                    dispatch({ type: 'INCREMENT_CONFIDENCE', level: signal.level });
+                }
+            });
 
             socket.on('board-rehydrate', ({ cards }: { cards: BoardCard[] }) => {
                 dispatch({ type: 'SET_BOARD_CARDS', cards });
@@ -104,7 +110,17 @@ export function TutorSessionPage() {
 
     const handleEndSession = useCallback(() => {
         if (boardCards.length > 0) {
-            const session = buildReviewSession(`session-${Date.now()}`, currentLesson?.id ?? 'unknown', currentLesson?.topic ?? 'Session', 'german' as any, 'A1.1', boardCards, sessionBoardStartRef.current, undefined, account?.id);
+            const lang = (boardCards[0]?.language as any) ?? currentLesson?.language ?? 'german';
+            const lvl = (boardCards[0]?.level as any) ?? currentLesson?.level ?? 'A1.1';
+            const session = buildReviewSession(
+                `session-${Date.now()}`,
+                currentLesson?.id ?? 'unknown',
+                currentLesson?.topic ?? 'Session',
+                lang, lvl,
+                boardCards, sessionBoardStartRef.current,
+                account?.displayName ?? 'Tutor',
+                account?.id
+            );
             saveSessionToHistory(session);
         }
         dispatch({ type: 'RESET_BOARD' });
@@ -155,7 +171,8 @@ export function TutorSessionPage() {
                             <LiveBoard cards={boardCards} tutorName="You (Tutor)" onFlagCard={() => {}} onUnflagCard={() => {}} />
                         </div>
                     </div>
-                    <div className="h-64 shrink-0">
+                    <TutorConfidenceTally counts={state.confidenceCounts} studentCount={state.boardCards.length > 0 ? 1 : 0} />
+                    <div className="h-48 shrink-0">
                         <StudentRoster socket={socket} roomId={roomCode || ''} isTutor={true} tutorName={account?.displayName || 'Tutor'} />
                     </div>
                 </div>

@@ -8,7 +8,9 @@ import type { BoardCard } from '../types/board';
  */
 export type StudentSignal =
     | { type: 'STUDENT_FLAG_CARD'; cardId: string; annotationText?: string }
-    | { type: 'STUDENT_UNFLAG_CARD'; cardId: string };
+    | { type: 'STUDENT_UNFLAG_CARD'; cardId: string }
+    | { type: 'STUDENT_CONFIDENCE'; level: 'got-it' | 'too-fast' | 'need-example'; timestamp?: number }
+    | { type: 'STUDENT_POLL_RESPONSE'; pollId: string; choiceIndex: number };
 
 /**
  * State events — tutor-to-student (via 'state-update' socket event)
@@ -22,6 +24,9 @@ export type StateEvent =
     | { type: 'CHANGE_PHASE'; phase: LessonPhase }
     | { type: 'UPDATE_LESSON'; lessonId: string }
     | { type: 'END_SESSION' }
+    // ── Polling (Phase 3) ──
+    | { type: 'POLL_START'; pollId: string; question: string; options: string[]; durationSeconds?: number }
+    | { type: 'POLL_END'; pollId: string }
     // ── Legacy whiteboard events (kept for backwards compat) ──
     | { type: 'ADD_WHITEBOARD_NOTE'; note: string }
     | { type: 'REMOVE_WHITEBOARD_NOTE'; index: number }
