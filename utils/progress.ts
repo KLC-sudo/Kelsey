@@ -50,7 +50,7 @@ export function saveUserProgress(progress: UserProgress): void {
         
         // Sync to server in background
         const account = loadAccount();
-        if (account && !getAuthState().isGuest) {
+        if (account) {
             fetch(`/api/users/${account.id}/progress`, {
                 method: 'PUT',
                 headers: getAuthHeaders(),
@@ -72,7 +72,7 @@ export function saveUserProgress(progress: UserProgress): void {
 
 export async function syncProgressFromServer(): Promise<void> {
     const account = loadAccount();
-    if (account && !getAuthState().isGuest) {
+    if (account) {
         try {
             const res = await fetch(`/api/users/${account.id}/progress`, {
                 headers: getAuthHeaders()

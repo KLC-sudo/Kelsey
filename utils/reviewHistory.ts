@@ -32,7 +32,7 @@ function writeHistory(sessions: ReviewSession[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
     // sync latest session to backend
     const account = loadAccount();
-    if (account && !getAuthState().isGuest && sessions.length > 0) {
+    if (account && sessions.length > 0) {
         const latest = sessions[0];
         fetch(`/api/users/${account.id}/history`, {
             method: 'POST',

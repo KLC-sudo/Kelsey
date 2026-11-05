@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { registerAccount, loginAccount, continueAsGuest, loadAccount, getAuthState, type RegisterFormData } from '../utils/account';
+import { registerAccount, loginAccount, loadAccount, getAuthState, type RegisterFormData } from '../utils/account';
 import type { UserRole } from '../types/account';
 
 type AuthMode = 'signin' | 'signup';
@@ -57,15 +57,6 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated?: () => void }) 
       setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGuest = async () => {
-    try {
-      await continueAsGuest('student');
-      onAuthenticated?.();
-    } catch {
-      setError('Failed to continue as guest');
     }
   };
 
@@ -198,15 +189,6 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated?: () => void }) 
           >
             {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
           </button>
-
-          <div className="text-center">
-            <button
-              onClick={handleGuest}
-              className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
-            >
-              Skip — continue as guest
-            </button>
-          </div>
         </div>
       </div>
     </div>

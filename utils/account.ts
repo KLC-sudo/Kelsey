@@ -153,17 +153,6 @@ export async function createAccount(input: RegisterInput): Promise<UserAccount> 
 }
 
 // ─────────────────────────────────────────────
-// Continue as guest (limited features)
-// ─────────────────────────────────────────────
-
-export async function continueAsGuest(role: UserRole): Promise<UserAccount> {
-  return createAccount({
-    displayName: 'Guest',
-    role,
-  });
-}
-
-// ─────────────────────────────────────────────
 // Load existing account (on app boot)
 // ─────────────────────────────────────────────
 
@@ -213,14 +202,12 @@ export function getAuthState(): AuthState {
 export function signOut(): void {
   localStorage.removeItem(AUTH_KEY);
   clearToken();
-  // Note: keep ACCOUNT_KEY so returning users get their name back
 }
 
 // ─────────────────────────────────────────────
-// Check if a user is authenticated and not a guest
+// Check if a user is authenticated
 // ─────────────────────────────────────────────
 
 export function isFullyAuthenticated(): boolean {
-  const state = getAuthState();
-  return state.isAuthenticated && !state.isGuest;
+  return getAuthState().isAuthenticated;
 }
